@@ -18,7 +18,7 @@ app.use(router);
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: blob:;"
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
   );
   next();
 });
@@ -65,15 +65,15 @@ app.post("/api/signup", async (req, res) => {
     pool.query(sql, [name, email, hashedPassword], (err, result) => {
       if (err) {
         console.error("Error inserting user:", err);
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ message: "Database error", error: err.sqlMessage });
       }
       res.status(201).json({ message: "User registered successfully" });
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    console.error("Signup error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 });
-
 
 // Login Route
 app.post("/api/login", (req, res) => {
@@ -104,6 +104,19 @@ app.post("/api/login", (req, res) => {
 
     res.status(200).json({ message: "Login successful", token });
   });
+});
+
+app.post("/api/recover-password", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+  }
+
+  // Simulating email sending (Replace this with actual email logic)
+  console.log(`Password reset link sent to ${email}`);
+
+  res.json({ message: "Password reset link sent to your email!" });
 });
 
 
