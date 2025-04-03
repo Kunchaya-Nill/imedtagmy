@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Labeling System</title>
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            font-family: Arial, sans-serif; 
+        }
+
+        body { 
+            display: flex; 
+            height: 100vh; 
+            background: #ccc; 
+        }
+
+        .container { 
+            display: flex; 
+            width: 100%; 
+        }
+
+        .sidebar { 
+            width: 20%; 
+            background: #333; 
+            color: white; 
+            padding: 20px; 
+            overflow-y: auto; 
+        }
+
+        .image-thumbnail { 
+            width: 100%; 
+            cursor: pointer; 
+            margin-bottom: 10px; 
+            border: 2px solid transparent; 
+        }
+
+        .image-thumbnail.selected { 
+            border: 2px solid yellow; 
+        }
+
+        .main-content { 
+            flex: 1; display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        .navbar { 
+            background: white; 
+            padding: 10px; 
+            display: flex; 
+            gap: 15px; 
+            border-bottom: 2px solid #ddd; 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000; }
+        
+        .navbar button {
+            padding: 8px 15px;
+            border: 1px solid black;
+            background: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .container { 
+            display: flex; 
+            width: 100%;  
+            margin-top: 50px; /* Adjust based on navbar height */ 
+        }
+
+        .labels-container { 
+            margin-top: 20px; 
+        }
+        
+
+        .label-box { 
+            padding: 10px; 
+            margin: 5px 0; 
+            cursor: pointer; 
+            background: #444; 
+            color: white; 
+            border-radius: 5px; 
+        }
+
+        .label-box.active { 
+            background: green; 
+        }
+
+        canvas { 
+            border: 2px solid black; 
+            cursor: crosshair; 
+        }
+
+        .popup { 
+            display: none; 
+            position: fixed; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            background: black; 
+            color: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+        }
+
+        .popup input, .popup button { 
+            display: block; 
+            margin: 10px 0; 
+            padding: 10px; }
+
+    </style>
+
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar" id="imageList"></div>
+        <div class="main-content">
+            <div class="navbar">
+                <button onclick="triggerFileUpload()">Add Picture</button>
+                <button onclick="showPopup()">Create Label</button>
+                <button onclick="exportYolo()">Export</button>
+            </div>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden>
+            <canvas id="imageCanvas"></canvas>
+        </div>
+        <div class="sidebar">
+            <div id="labels-container">
+                <h3>Labels</h3>
+                <div id="labelList"></div>  <!-- Stores created labels -->
+                
+                <h3>-------------------</h3>
+                <div id="drawnLabels"></div> <!-- Stores drawn labels -->
+            </div>
+
+        </div>
+    </div>
+    <div class="popup" id="labelPopup">
+        <h3>Create Label</h3>
+        <input type="text" id="labelName" placeholder="Name The Label">
+        <input type="color" id="labelColor" value="#00ff00">
+        <button onclick="createLabel()">Create</button>
+        <button onclick="closePopup()">Cancel</button>
+    </div>
+    <div class="popup" id="editLabelPopup">
+        <h3>Edit Label</h3>
+        <input type="text" id="editLabelName" placeholder="Label Name">
+        <input type="color" id="editLabelColor">
+        <button onclick="updateLabel()">Update</button>
+        <button onclick="closeEditPopup()">Cancel</button>
+    </div>    
+
+    <script src="script.js"></script>
+    <script>
+        let images = [], activeLabelId = null, labels = {}, selectedImage = null;
+        const fileInput = document.getElementById("fileInput");
+        const imageList = document.getElementById("imageList");
+        const labelsContainer = document.getElementById("labels-container");
+        const canvas = document.getElementById("imageCanvas");
+        const ctx = canvas.getContext("2d");
+        let drawing = false, startX, startY;
+        let tempBox = { x: 0, y: 0, w: 0, h: 0 };
+        let editingLabelId = null;
+        let segmentations = {}; // Store segmentation per label
+        let points = []; // Store clicked points
+
+        function triggerFileUpload() { fileInput.click(); }
+
+        fileInput.addEventListener("change", event => {
+            [...event.target.files].forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.classList.add("image-thumbnail");
+                    img.onclick = () => setImage(img, e.target.result);
+
+                    // Create container for image and delete button
+                    const imageContainer = document.createElement("div");
+                    imageContainer.style.display = "flex";
+                    imageContainer.style.alignItems = "center";
+                    imageContainer.style.justifyContent = "space-between";
+                    imageContainer.style.marginBottom = "5px";
+
+                    // Create delete button
+                    const deleteBtn = document.createElement("button");
+                    deleteBtn.innerHTML = "❌";
+                    deleteBtn.style.background = "red";
+                    deleteBtn.style.color = "white";
+                    deleteBtn.style.border = "none";
+                    deleteBtn.style.cursor = "pointer";
+                    deleteBtn.style.marginLeft = "5px";
+                    deleteBtn.onclick = () => deleteImage(img, imageContainer);
+
+                    // Append image and delete button to the container
+                    imageContainer.appendChild(img);
+                    imageContainer.appendChild(deleteBtn);
+
+                    // Append to sidebar
+                    imageList.appendChild(imageContainer);
+                    images.push({ src: e.target.result, labels: [] });
+
+                    // Set the first image as selected by default
+                    if (!selectedImage) setImage(img, e.target.result);
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        function setImage(imgElement, src) {
+            selectedImage = images.find(img => img.src === src);
+    
+            // Clear the previously drawn labels and canvas before drawing the new image
+            document.querySelectorAll(".image-thumbnail").forEach(el => el.classList.remove("selected"));
+            imgElement.classList.add("selected");
+
+            const img = new Image();
+            img.src = src;
+            img.onload = () => {
+                // Set canvas size to match the new image
+                canvas.width = img.width;
+                canvas.height = img.height;
+
+                // Draw the new image on the canvas (do it only once)
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // After the image is drawn, draw all existing labels
+                drawLabels();
+            };
+        }
+
+
+        function showPopup() { document.getElementById("labelPopup").style.display = "block"; }
+        function closePopup() { document.getElementById("labelPopup").style.display = "none"; }
+
+        function createLabel() {
+            const name = document.getElementById("labelName").value;
+            const color = document.getElementById("labelColor").value;
+            if (!name) return alert("Label name is required!");
+
+            const labelId = `label_${Date.now()}`; // Unique ID
+            labels[labelId] = { name, color };
+
+            // Create label UI in the top section
+            const labelDiv = document.createElement("div");
+            labelDiv.classList.add("label-box");
+            labelDiv.style.backgroundColor = color;
+            labelDiv.setAttribute("data-id", labelId);
+    
+            labelDiv.innerHTML = `
+                <span contenteditable="true" oninput='editLabelName("${labelId}", this.innerText)'>${name}</span>
+                <button onclick='editLabel("${labelId}")'>✏️</button>
+                <button onclick='deleteLabel("${labelId}", this)'> 🗑 </button>
+                <div style="margin-top: 5px;">
+                    <button onclick='Labeling("${labelId}")'>Labeling</button> 
+                </div>
+            `;
+
+            labelDiv.onclick = () => { activeLabelId = labelId; };
+            document.getElementById("labelList").appendChild(labelDiv); // Add to the top section
+            closePopup();
+        }
+
+
+        function editLabel(labelId) {
+            editingLabelId = labelId;
+            const label = labels[labelId];
+
+            if (!label) return alert("Label not found!");
+
+            // Fill the popup fields with current values
+            document.getElementById("editLabelName").value = label.name;
+            document.getElementById("editLabelColor").value = label.color;
+
+            // Show the edit popup
+            document.getElementById("editLabelPopup").style.display = "block";
+        }
+
+        function closeEditPopup() {
+            document.getElementById("editLabelPopup").style.display = "none";
+        }
+
+        function updateLabel() {
+            if (!editingLabelId) return;
+
+            const newName = document.getElementById("editLabelName").value;
+            const newColor = document.getElementById("editLabelColor").value;
+
+            if (!newName.trim()) return alert("Label name is required!");
+
+            labels[editingLabelId].name = newName;
+            labels[editingLabelId].color = newColor;
+
+            // Update UI: Sidebar labels
+            const labelDiv = document.querySelector(`.label-box[data-id="${editingLabelId}"]`);
+            if (labelDiv) {
+                labelDiv.style.backgroundColor = newColor;
+                labelDiv.querySelector("span").innerText = newName;
+            }
+
+            // Update all drawn labels
+            selectedImage.labels.forEach(label => {
+                if (label.labelId === editingLabelId) {
+                    label.color = newColor;
+                }
+            });
+
+            // Update drawn labels in sidebar
+            const drawnLabelDivs = document.querySelectorAll(`#drawnLabels .label-box[data-label-id="${editingLabelId}"]`);
+            drawnLabelDivs.forEach(div => {
+                div.style.border = `2px solid ${newColor}`;
+                const spanElement = div.querySelector("strong");
+                if (spanElement) spanElement.innerText = newName;
+                spanElement.style.color = newColor; // Change text color
+            });
+
+            drawLabels(); // Redraw updated labels on the canvas
+            closeEditPopup(); // Close the popup
+        }
+
+        function deleteLabel(labelId, button) {
+            // Check if the label is used in any image
+            let isUsed = images.some(image => image.labels.some(label => label.labelId === labelId));
+
+            if (isUsed) {
+                // Show confirmation popup if label is used
+                const confirmDelete = confirm("This label is used in images. Are you sure you want to delete it?");
+                if (!confirmDelete) return; // If user cancels, exit function
+            }
+
+            // Remove the label from all images
+            images.forEach(image => {
+                image.labels = image.labels.filter(label => label.labelId !== labelId);
+            });
+
+            // Remove the label from the UI
+            const labelDiv = document.querySelector(`.label-box[data-id="${labelId}"]`);
+            if (labelDiv) {
+                labelDiv.remove();
+            }
+
+            // Remove from drawn labels container
+            const drawnLabelDivs = document.querySelectorAll(`#drawnLabels .label-box[data-label-id="${labelId}"]`);
+            drawnLabelDivs.forEach(div => div.remove());
+
+            // Redraw labels
+            drawLabels();
+        }
+
+        canvas.addEventListener("mousedown", (event) => {
+            if (!activeLabelId) return;
+
+            let x = event.offsetX, y = event.offsetY;
+
+            if (!segmentations[activeLabelId]) {
+                segmentations[activeLabelId] = [];
+            }
+
+            segmentations[activeLabelId].push({ x, y });
+
+            if (segmentations[activeLabelId].length > 2 && isNear(segmentations[activeLabelId])) {
+                segmentations[activeLabelId].push(segmentations[activeLabelId][0]); // Close the loop
+            }
+
+            points.push({ x, y });
+            drawDots();
+            drawLabels();
+        });
+
+        function drawDots() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Redraw the image
+            const img = new Image();
+            img.src = selectedImage.src;
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Draw each stored dot one by one
+                points.forEach((point, index) => {
+                    setTimeout(() => {
+                        ctx.beginPath();
+                        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                        ctx.fillStyle = point.color || "red";
+                        ctx.fill();
+                    }, index * 500); // Add delay between dots appearing
+                });
+            };
+        }
+
+        function isNear(points, threshold = 5) {
+            if (points.length < 3) return false;
+
+            let first = points[0];
+            let last = points[points.length - 1];
+
+            let distance = Math.sqrt((first.x - last.x) ** 2 + (first.y - last.y) ** 2);
+            return distance < threshold;
+        }
+
+
+        function drawLabels() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const img = new Image();
+            img.src = selectedImage.src;
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                Object.entries(segmentations).forEach(([labelId, points]) => {
+                    if (!points.length) return;
+
+                    ctx.strokeStyle = labels[labelId]?.color || "yellow";
+                    ctx.fillStyle = ctx.strokeStyle + "40"; // Semi-transparent fill
+                    ctx.lineWidth = 2;
+
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+
+                    points.forEach((point) => ctx.lineTo(point.x, point.y));
+
+                    if (points.length > 2 && isNear(points)) {
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+
+                    ctx.stroke();
+                });
+            };
+        }
+
+        function addDrawnLabelToSidebar(label) {
+            const drawnLabelDiv = document.createElement("div");
+            drawnLabelDiv.classList.add("label-box");
+            drawnLabelDiv.style.border = `2px solid ${label.color}`;
+            drawnLabelDiv.setAttribute("data-label-id", label.labelId);
+
+            drawnLabelDiv.innerHTML = `
+                <strong style="color: ${label.color}">${labels[label.labelId].name}</strong>
+                <div>(${label.x}, ${label.y}, ${label.w}, ${label.h})</div>
+                <button onclick="deleteDrawnLabel('${label.labelId}', this)">🗑 Remove</button>
+            `;
+
+            document.getElementById("drawnLabels").appendChild(drawnLabelDiv);
+        }
+
+        function deleteDrawnLabel(labelId, button) {
+            const labelDiv = button.parentElement;
+    
+            // Extract label position details from the UI
+            const labelText = labelDiv.querySelector("div").innerText;
+            const match = labelText.match(/\((\d+), (\d+), (\d+), (\d+)\)/);
+    
+            if (!match) return; // Prevent errors if format is incorrect
+    
+            const [_, x, y, w, h] = match.map(Number); // Extract numbers from text
+    
+            // Remove only the label that matches both labelId and exact position
+            selectedImage.labels = selectedImage.labels.filter(label =>
+                !(label.labelId === labelId && label.x === x && label.y === y && label.w === w && label.h === h)
+            );
+
+            // Remove from UI
+            labelDiv.remove();
+    
+            // Redraw canvas without the deleted label
+            drawLabels();
+        }
+
+        function exportYolo() {
+            let data = images.map(img => {
+                return img.labels.map(label => {
+                    const xCenter = (label.x + label.w / 2) / canvas.width;
+                    const yCenter = (label.y + label.h / 2) / canvas.height;
+                    const width = label.w / canvas.width;
+                    const height = label.h / canvas.height;
+                    return `${labels[label.labelId].name} ${xCenter.toFixed(6)} ${yCenter.toFixed(6)} ${width.toFixed(6)} ${height.toFixed(6)}`;
+                }).join("\n");
+            }).join("\n");
+
+            const blob = new Blob([data], { type: "text/plain" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "labels.txt";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function deleteImage(imgElement, container) {
+            images = images.filter(img => img.src !== imgElement.src);
+            container.remove();
+    
+            if (selectedImage && selectedImage.src === imgElement.src) {
+                if (images.length > 0) {
+                    // Set the first image as selected if there are remaining images
+                    setImage(document.querySelector(".image-thumbnail"), images[0].src);
+                } else {
+                    // Clear the canvas if there are no more images
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    selectedImage = null;
+                }
+            }
+        }
+
+    </script>
+</body>
+</html>
+
+

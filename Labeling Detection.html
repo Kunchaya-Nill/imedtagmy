@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Labeling System</title>
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            font-family: Arial, sans-serif; 
+        }
+
+        body { 
+            display: flex; 
+            height: 100vh; 
+            background: #ccc; 
+        }
+
+        .container { 
+            display: flex; 
+            width: 100%; 
+        }
+
+        .sidebar { 
+            width: 20%; 
+            background: #333; 
+            color: white; 
+            padding: 20px; 
+            overflow-y: auto; 
+        }
+
+        .image-thumbnail { 
+            width: 100%; 
+            cursor: pointer; 
+            margin-bottom: 10px; 
+            border: 2px solid transparent; 
+        }
+
+        .image-thumbnail.selected { 
+            border: 2px solid yellow; 
+        }
+
+        .main-content { 
+            flex: 1; display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        .navbar { 
+            background: white; 
+            padding: 10px; 
+            display: flex; 
+            gap: 15px; 
+            border-bottom: 2px solid #ddd; 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000; }
+        
+        .navbar button {
+            padding: 8px 15px;
+            border: 1px solid black;
+            background: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .container { 
+            display: flex; 
+            width: 100%;  
+            margin-top: 50px; /* Adjust based on navbar height */ 
+        }
+
+        .labels-container { 
+            margin-top: 20px; 
+        }
+        
+
+        .label-box { 
+            padding: 10px; 
+            margin: 5px 0; 
+            cursor: pointer; 
+            background: #444; 
+            color: white; 
+            border-radius: 5px; 
+        }
+
+        .label-box.active { 
+            background: green; 
+        }
+
+        canvas {
+            border: 2px solid red; /* Debugging */
+            background-color: #f0f0f0; /* Add a background to see if the canvas is rendered */
+            width: 100%; /* Ensure it takes up space */
+            height: auto; /* Adjust height dynamically */
+        }
+
+        .popup { 
+            display: none; 
+            position: fixed; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            background: black; 
+            color: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+        }
+
+        .popup input, .popup button { 
+            display: block; 
+            margin: 10px 0; 
+            padding: 10px; }
+
+    </style>
+    
+</head>
+<body>
+    <button id="backButton" class="back-btn">⬅ Back</button>
+    <div class="container">
+        <div class="sidebar" id="imageList"></div>
+        <div class="main-content">
+            <div class="navbar">
+                <button onclick="triggerFileUpload()">Add Picture</button>
+                <button onclick="showPopup()">Create Label</button>
+                <button onclick="exportYolo()">Export</button>
+            </div>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden>
+            <canvas id="imageCanvas"></canvas>
+        </div>
+        <div class="sidebar">
+            <div id="labels-container">
+                <h3>Labels</h3>
+                <div id="labelList"></div>
+                <h3>-------------------</h3>
+                <div id="drawnLabels"></div>
+            </div>
+        </div>
+    </div>
+
+        </div>
+    </div>
+    <div class="popup" id="labelPopup">
+        <h3>Create Label</h3>
+        <input type="text" id="labelName" placeholder="Name The Label">
+        <input type="color" id="labelColor" value="#00ff00">
+        <button onclick="createLabel()">Create</button>
+        <button onclick="closePopup()">Cancel</button>
+    </div>
+    <div class="popup" id="editLabelPopup">
+        <h3>Edit Label</h3>
+        <input type="text" id="editLabelName" placeholder="Label Name">
+        <input type="color" id="editLabelColor">
+        <button onclick="updateLabel()">Update</button>
+        <button onclick="closeEditPopup()">Cancel</button>
+    </div>    
+
+    <script src="script.js"></script>
+    <script>
+         document.getElementById("backButton").addEventListener("click", function() {
+            window.location.href = "Project.html";
+        });
+        let images = [], activeLabelId = null, labels = {}, selectedImage = null;
+        const fileInput = document.getElementById("fileInput");
+        const imageList = document.getElementById("imageList");
+        const labelsContainer = document.getElementById("labels-container");
+        const canvas = document.getElementById("imageCanvas");
+        const ctx = canvas.getContext("2d");
+        let drawing = false, startX, startY;
+        let tempBox = { x: 0, y: 0, w: 0, h: 0 };
+        let editingLabelId = null;
+
+        let db;
+
+// Open IndexedDB Database
+function openDatabase() {
+    let request = indexedDB.open("ImageDatabase", 1);
+
+    request.onsuccess = function(event) {
+        db = event.target.result;
+        loadImage();
+    };
+
+    request.onerror = function(event) {
+        console.log("Database error:", event.target.errorCode);
+    };
+}
+
+    // Load Image using ID from URL
+    function loadImages() {
+            imageList.innerHTML = "";
+            let transaction = db.transaction(["images"], "readonly");
+            let objectStore = transaction.objectStore("images");
+            let request = objectStore.openCursor();
+            request.onsuccess = function(event) {
+                let cursor = event.target.result;
+                if (cursor) {
+                    let imgElement = document.createElement("div");
+                    imgElement.className = "image-item";
+                    imgElement.innerHTML = `<img src="${cursor.value.image}" width="100"><br>Image ${cursor.key}`;
+                    imgElement.onclick = function() {
+                        selectedImage = cursor.value;
+                        drawImage(cursor.value.image);
+                    };
+                    imageList.appendChild(imgElement);
+                    cursor.continue();
+                }
+            };
+        }
+
+    document.addEventListener("DOMContentLoaded", openDatabase);
+
+        fileInput.addEventListener("change", event => {
+        console.log("Files Selected:", event.target.files);
+    });
+
+        function triggerFileUpload() { fileInput.click(); }
+
+        let currentIndex = 0;
+
+        async function fetchImages() {
+            try {
+                const response = await fetch('/api/get-images'); // Fetch images from the Project.html database
+                images = await response.json();
+                if (images.length > 0) {
+                    document.getElementById('galleryImage').src = images[0].url;
+                }
+            } catch (error) {
+                console.error('Error fetching images:', error);
+            }
+        }
+
+        
+        document.getElementById('imageSelector').addEventListener('change', function() {
+            document.getElementById('selectedImage').src = this.value;
+        });
+        
+        fetchImages();
+
+        fileInput.addEventListener("change", event => {
+    [...event.target.files].forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.classList.add("image-thumbnail");
+            img.onclick = () => setImage(img, e.target.result);
+
+            // Create container for image and delete button
+            const imageContainer = document.createElement("div");
+            imageContainer.style.display = "flex";
+            imageContainer.style.alignItems = "center";
+            imageContainer.style.justifyContent = "space-between";
+            imageContainer.style.marginBottom = "5px";
+
+            // Create delete button
+            const deleteBtn = document.createElement("button");
+            deleteBtn.innerHTML = "❌";
+            deleteBtn.style.background = "red";
+            deleteBtn.style.color = "white";
+            deleteBtn.style.border = "none";
+            deleteBtn.style.cursor = "pointer";
+            deleteBtn.style.marginLeft = "5px";
+            deleteBtn.onclick = () => deleteImage(img, imageContainer);
+
+            // Append image and delete button to the container
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(deleteBtn);
+
+            // Append to sidebar
+            imageList.appendChild(imageContainer);
+            images.push({ src: e.target.result, labels: [], id: Date.now() }); // Add unique ID
+
+            // Set the first image as selected by default
+            if (!selectedImage) setImage(img, e.target.result);
+        };
+        reader.readAsDataURL(file);
+    });
+});
+
+        function initDB() {
+            let request = indexedDB.open("ImageDB", 1);
+            request.onupgradeneeded = function(event) {
+                db = event.target.result;
+                let objectStore = db.createObjectStore("images", { keyPath: "id", autoIncrement: true });
+                objectStore.createIndex("image", "image", { unique: false });
+                objectStore.createIndex("labels", "labels", { unique: false });
+            };
+            request.onsuccess = function(event) {
+                db = event.target.result;
+                loadImages();
+            };
+            request.onerror = function(event) {
+                console.error("Database error: ", event.target.errorCode);
+            };
+        }
+
+        function saveImageToDB(imageData) {
+            let transaction = db.transaction(["images"], "readwrite");
+            let objectStore = transaction.objectStore("images");
+            let request = objectStore.add({ image: imageData, labels: [] });
+            request.onsuccess = function() {
+                loadImages();
+            };
+        }
+
+        // Set Image on Canvas
+        function setImage(imgElement, src) {
+            selectedImage = images.find(image => image.src === src);
+            if (!selectedImage) return;
+
+            const img = new Image();
+            img.src = src;
+            img.onload = () => {
+                // Set canvas size to match the image
+                canvas.width = img.width;
+                canvas.height = img.height;
+
+                // Draw the image on the canvas
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Load labels for the image (if any)
+                loadLabels();
+            };
+        }
+
+    // Load Labels for the Image
+    function loadLabels() {
+        if (!selectedImage) return;
+
+        const imageId = selectedImage.id; // Use the selected image's ID
+        if (!imageId) return;
+
+        let transaction = db.transaction(["images"], "readonly");
+        let store = transaction.objectStore("images");
+        let request = store.get(imageId);
+
+        request.onsuccess = function(event) {
+            let image = event.target.result;
+            if (image && image.labels) {
+                image.labels.forEach(label => {
+                    addDrawnLabelToSidebar(label); // Add labels to the sidebar
+                });
+                drawLabels(); // Draw labels on the canvas
+            }
+        };
+    }
+
+    // Initialize on Page Load
+    document.addEventListener("DOMContentLoaded", openDatabase);
+
+        function showPopup() { document.getElementById("labelPopup").style.display = "block"; }
+        function closePopup() { document.getElementById("labelPopup").style.display = "none"; }
+
+    function createLabel() {
+        const name = document.getElementById("labelName").value;
+        const color = document.getElementById("labelColor").value;
+        if (!name) return alert("Label name is required!");
+
+        const labelId = `label_${Date.now()}`; // Unique ID
+        labels[labelId] = { name, color };
+
+        // Create label UI in the top section
+        const labelDiv = document.createElement("div");
+        labelDiv.classList.add("label-box");
+        labelDiv.style.backgroundColor = color;
+        labelDiv.setAttribute("data-id", labelId);
+    
+            labelDiv.innerHTML = `
+                <span contenteditable="true" oninput='editLabelName("${labelId}", this.innerText)'>${name}</span>
+                <button onclick='editLabel("${labelId}")'>✏️</button>
+                <button onclick='deleteLabel("${labelId}", this)'> 🗑 </button>
+                <div style="margin-top: 5px;">
+                    <button onclick='Labeling("${labelId}")'>Labeling</button> 
+                </div>
+            `;
+
+            labelDiv.onclick = () => { activeLabelId = labelId; };
+            document.getElementById("labelList").appendChild(labelDiv); // Add to the top section
+            closePopup();
+        }
+
+
+        function editLabel(labelId) {
+            editingLabelId = labelId;
+            const label = labels[labelId];
+
+            if (!label) return alert("Label not found!");
+
+            // Fill the popup fields with current values
+            document.getElementById("editLabelName").value = label.name;
+            document.getElementById("editLabelColor").value = label.color;
+
+            // Show the edit popup
+            document.getElementById("editLabelPopup").style.display = "block";
+        }
+
+        function closeEditPopup() {
+            document.getElementById("editLabelPopup").style.display = "none";
+        }
+
+        function updateLabel() {
+            if (!editingLabelId) return;
+
+            const newName = document.getElementById("editLabelName").value;
+            const newColor = document.getElementById("editLabelColor").value;
+
+            if (!newName.trim()) return alert("Label name is required!");
+
+            labels[editingLabelId].name = newName;
+            labels[editingLabelId].color = newColor;
+
+            // Update UI: Sidebar labels
+            const labelDiv = document.querySelector(`.label-box[data-id="${editingLabelId}"]`);
+            if (labelDiv) {
+                labelDiv.style.backgroundColor = newColor;
+                labelDiv.querySelector("span").innerText = newName;
+            }
+
+            // Update all drawn labels
+            selectedImage.labels.forEach(label => {
+                if (label.labelId === editingLabelId) {
+                    label.color = newColor;
+                }
+            });
+
+            // Update drawn labels in sidebar
+            const drawnLabelDivs = document.querySelectorAll(`#drawnLabels .label-box[data-label-id="${editingLabelId}"]`);
+            drawnLabelDivs.forEach(div => {
+                div.style.border = `2px solid ${newColor}`;
+                const spanElement = div.querySelector("strong");
+                if (spanElement) spanElement.innerText = newName;
+                spanElement.style.color = newColor; // Change text color
+            });
+
+            drawLabels(); // Redraw updated labels on the canvas
+            closeEditPopup(); // Close the popup
+        }
+
+        function deleteLabel(labelId, button) {
+            // Check if the label is used in any image
+            let isUsed = images.some(image => image.labels.some(label => label.labelId === labelId));
+
+            if (isUsed) {
+                // Show confirmation popup if label is used
+                const confirmDelete = confirm("This label is used in images. Are you sure you want to delete it?");
+                if (!confirmDelete) return; // If user cancels, exit function
+            }
+
+            // Remove the label from all images
+            images.forEach(image => {
+                image.labels = image.labels.filter(label => label.labelId !== labelId);
+            });
+
+            // Remove the label from the UI
+            const labelDiv = document.querySelector(`.label-box[data-id="${labelId}"]`);
+            if (labelDiv) {
+                labelDiv.remove();
+            }
+
+            // Remove from drawn labels container
+            const drawnLabelDivs = document.querySelectorAll(`#drawnLabels .label-box[data-label-id="${labelId}"]`);
+            drawnLabelDivs.forEach(div => div.remove());
+
+            // Redraw labels
+            drawLabels();
+        }
+
+    canvas.addEventListener("mousedown", (e) => {
+        if (!activeLabelId || !selectedImage) return; // Ensure an image and label are selected
+        drawing = true;
+        startX = e.offsetX;
+        startY = e.offsetY;
+        tempBox = { x: startX, y: startY, w: 0, h: 0, color: labels[activeLabelId].color };
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+        if (!drawing || !selectedImage) return; // Ensure an image is selected
+
+        const currentX = e.offsetX;
+        const currentY = e.offsetY;
+
+        // Update tempBox dimensions
+        tempBox.w = currentX - startX;
+        tempBox.h = currentY - startY;
+
+        drawLabels(); // Redraw existing labels
+        drawTempBox(); // Draw the temporary box while drawing
+    });
+
+    canvas.addEventListener("mouseup", (e) => {
+        if (!drawing || !selectedImage) return; // Ensure an image is selected
+        drawing = false;
+
+        const endX = e.offsetX;
+        const endY = e.offsetY;
+
+        const newLabel = {
+            x: startX, y: startY,
+            w: endX - startX, h: endY - startY,
+            labelId: activeLabelId,
+            color: labels[activeLabelId].color
+        };
+
+        // Add the label to the selected image
+        selectedImage.labels.push(newLabel);
+
+        // Save the label to IndexedDB
+        saveLabelToIndexedDB(newLabel);
+
+        // Add the label to the sidebar
+        addDrawnLabelToSidebar(newLabel);
+
+        // Redraw labels on the canvas
+        drawLabels();
+
+        // Reset temporary box after label is drawn
+        tempBox = { x: 0, y: 0, w: 0, h: 0 };
+    });
+
+        function drawTempBox() {
+            ctx.strokeStyle = tempBox.color;
+            ctx.fillStyle = tempBox.color + "40"; // Semi-transparent fill
+            ctx.lineWidth = 2;
+            ctx.strokeRect(tempBox.x, tempBox.y, tempBox.w, tempBox.h);
+            ctx.fillRect(tempBox.x, tempBox.y, tempBox.w, tempBox.h);
+        }
+
+    function drawLabels() {
+        if (!selectedImage) return; // Ensure an image is selected
+
+        const img = new Image();
+        img.src = selectedImage.src;
+        img.onload = () => {
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the selected image
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            // Draw the labels for the selected image
+            selectedImage.labels.forEach(label => {
+                ctx.strokeStyle = label.color;
+                ctx.fillStyle = label.color + "40"; // Light fill
+                ctx.lineWidth = 2;
+                ctx.strokeRect(label.x, label.y, label.w, label.h);
+                ctx.fillRect(label.x, label.y, label.w, label.h);
+
+                // Draw label name
+                ctx.fillStyle = "white";
+                ctx.font = "12px Arial";
+                ctx.fillText(labels[label.labelId].name, label.x + 5, label.y + 15);
+            });
+
+            // Draw the temporary bounding box (if being drawn)
+            if (tempBox) {
+                ctx.strokeStyle = tempBox.color;
+                ctx.fillStyle = tempBox.color + "40"; // Semi-transparent preview
+                ctx.lineWidth = 2;
+                ctx.strokeRect(tempBox.x, tempBox.y, tempBox.w, tempBox.h);
+                ctx.fillRect(tempBox.x, tempBox.y, tempBox.w, tempBox.h);
+            }
+        };
+    }
+
+        function addDrawnLabelToSidebar(label) {
+            const drawnLabelDiv = document.createElement("div");
+            drawnLabelDiv.classList.add("label-box");
+            drawnLabelDiv.style.border = `2px solid ${label.color}`;
+            drawnLabelDiv.setAttribute("data-label-id", label.labelId);
+
+            drawnLabelDiv.innerHTML = `
+                <strong style="color: ${label.color}">${labels[label.labelId].name}</strong>
+                <div>(${label.x}, ${label.y}, ${label.w}, ${label.h})</div>
+                <button onclick="deleteDrawnLabel('${label.labelId}', this)">🗑 Remove</button>
+            `;
+
+            document.getElementById("drawnLabels").appendChild(drawnLabelDiv);
+        }
+
+        function deleteDrawnLabel(labelId, button) {
+            const labelDiv = button.parentElement;
+    
+            // Extract label position details from the UI
+            const labelText = labelDiv.querySelector("div").innerText;
+            const match = labelText.match(/\((\d+), (\d+), (\d+), (\d+)\)/);
+    
+            if (!match) return; // Prevent errors if format is incorrect
+    
+            const [_, x, y, w, h] = match.map(Number); // Extract numbers from text
+    
+            // Remove only the label that matches both labelId and exact position
+            selectedImage.labels = selectedImage.labels.filter(label =>
+                !(label.labelId === labelId && label.x === x && label.y === y && label.w === w && label.h === h)
+            );
+
+            // Remove from UI
+            labelDiv.remove();
+    
+            // Redraw canvas without the deleted label
+            drawLabels();
+        }
+
+    function exportYolo() {
+        images.forEach(img => {
+            let yoloData = img.labels.map(label => {
+                const classId = label.labelId; // Make sure labelId is a numeric index
+                const xCenter = (label.x + label.w / 2) / img.width;  // Normalize using image width
+                const yCenter = (label.y + label.h / 2) / img.height; // Normalize using image height
+                const width = label.w / img.width;
+                const height = label.h / img.height;
+
+                return `${classId} ${xCenter.toFixed(6)} ${yCenter.toFixed(6)} ${width.toFixed(6)} ${height.toFixed(6)}`;
+            }).join("\n");
+
+            // Create a YOLO annotation file per image
+            const blob = new Blob([yoloData], { type: "text/plain" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `${img.name.split('.')[0]}.txt`; // Save as "image_name.txt"
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+    }
+
+
+    function deleteImage(imgElement, container) {
+        const imageId = selectedImage.id; // Use the selected image's ID
+        if (!imageId) return;
+
+        // Remove the image from the images array
+        images = images.filter(img => img.src !== imgElement.src);
+        container.remove();
+
+        // Remove the image from IndexedDB
+        let transaction = db.transaction(["images"], "readwrite");
+        let store = transaction.objectStore("images");
+        store.delete(imageId);
+
+        // Clear the canvas if no images are left
+        if (images.length === 0) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            selectedImage = null;
+        }
+    }
+
+    function saveLabelToIndexedDB(label) {
+        if (!selectedImage) return;
+
+        const imageId = selectedImage.id; // Use the selected image's ID
+        if (!imageId) return;
+
+        let transaction = db.transaction(["images"], "readwrite");
+        let store = transaction.objectStore("images");
+        let request = store.get(imageId);
+
+        request.onsuccess = function(event) {
+            let image = event.target.result;
+            if (image) {
+                if (!image.labels) image.labels = [];
+                image.labels.push(label);
+                store.put(image); // Update the image in IndexedDB
+            }
+        };
+    }
+
+    </script>
+</body>
+</html>

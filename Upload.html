@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Workspace</title>
+    <style>
+      /* Global Styles */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background-color: #1e1e1e;
+        color: #ffffff;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+      }
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+        border: none;
+        outline: none;
+        font-family: inherit;
+      }
+
+      /* Header */
+      .header {
+        background: linear-gradient(90deg, #333, #444);
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        position: fixed; /* Fixed position */
+        width: 100%; /* Full width */
+        z-index: 100; /* Ensure it stays above other elements */
+      }
+      .project-name {
+        font-size: 1.5rem;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      .label-style {
+        font-size: 1.2rem;
+        color: #ffffff;
+      }
+
+      /* Left Sidebar */
+      .left-sidebar {
+        width: 250px;
+        background: linear-gradient(180deg, #2a2a2a, #333);
+        color: #ffffff;
+        position: fixed;
+        height: 100%;
+        padding-top: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
+      }
+      .left-sidebar a {
+        font-size: 1rem;
+        padding: 15px 20px;
+        display: block;
+        transition: background 0.3s, color 0.3s;
+      }
+      .left-sidebar a:hover {
+        background: #444;
+        color: #ffdd57;
+      }
+      .left-sidebar a.active {
+        background: #007bff;
+        font-weight: bold;
+      }
+
+      /* Dropdown Menu */
+      .more-options {
+        position: relative;
+      }
+      .options-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: #333;
+        border-radius: 5px;
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+        width: 200px;
+        z-index: 10;
+      }
+      .options-menu ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .options-menu li {
+        padding: 6px 9px; /* Reduced padding */
+        font-size: 0.9rem; /* Smaller font size */
+        white-space: nowrap; /* Prevent text wrapping */
+        transition: background 0.3s;
+      }
+      .options-menu li:hover {
+        background: #444;
+      }
+      .more-options:hover .options-menu {
+        display: block;
+        margin-top: -6vh;
+        margin-left: 250px;
+        width: 300px;
+        border-radius: 0;
+      }
+
+      /* Main Content */
+      .main-content {
+        margin-left: 270px; /* Space for sidebar */
+        padding: 20px;
+        min-height: calc(100vh - 40px);
+      }
+      .search-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .search-container input {
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #444;
+        background: #2a2a2a;
+        color: #ffffff;
+        transition: border-color 0.3s;
+      }
+      .search-container input:focus {
+        border-color: #007bff;
+      }
+
+      .upload-container {
+        display: flex;
+        align-items: center; /* Vertically centers the buttons */
+        gap: 10px; /* Optional: Adds a fixed gap between the buttons */
+      }
+      /* Buttons */
+      .upload-btn,
+      .upload-folder-btn {
+        background: #444;
+        padding: 10px 15px;
+        border-radius: 5px;
+        color: #ffffff;
+        transition: background 0.3s;
+      }
+      .upload-btn:hover,
+      .upload-folder-btn:hover {
+        background: #555;
+      }
+
+      /* Image Preview */
+      .image-preview {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 15px;
+      }
+      .image-container {
+        position: relative;
+        text-align: center;
+      }
+      .image-container img {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 5px;
+        border: 1px solid #444;
+        transition: transform 0.3s;
+      }
+      .image-container img:hover {
+        transform: scale(1.05);
+      }
+      .delete-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: #ff4d4d;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 25px;
+        height: 25px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        line-height: 25px;
+        text-align: center;
+        transition: background 0.3s;
+      }
+      .delete-btn:hover {
+        background: #cc0000;
+      }
+
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .left-sidebar {
+          width: 100%;
+          height: auto;
+          position: static;
+        }
+        .main-content {
+          margin-left: 0;
+        }
+      }
+    </style>
+        <button id="backButton" class="back-btn">⬅ Back</button>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="project-name" id="projectName">
+          <a href="#home">Caries</a>
+        </div>
+      </div>
+  
+      <!-- Left Sidebar -->
+      <div class="left-sidebar">
+        <a href="#" id="menu-upload">📤 Upload Images</a>
+        <a href="#" id="menu-labeling">🏷️ Labeling</a>
+        <a href="#" id="menu-dataset">📂 Dataset</a>
+        <a href="#" id="menu-classes">🔖 Class & Tags</a>
+        <div class="more-options">
+          <a href="#" id="menu-more">⋮ More Options</a>
+          <div class="options-menu">
+            <ul>
+              <li><a href="#">📋 Copy Project</a></li>
+              <li><a href="#">📂 Duplicate Project</a></li>
+              <li><a href="#">🔗 Merge Project</a></li>
+              <li><a href="#">✏️ Rename Project</a></li>
+              <li><a href="#">🔒 Make Private</a></li>
+              <li><a href="#">🗑 Delete Project</a></li>
+              <li><a href="#">Logout</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+  
+      <!-- Main Content -->
+      <div class="main-content">
+        <h2 id="labelingTitle" style="margin-bottom: 20px">Upload Images</h2>
+        <div class="search-container">
+          <label class="label-style"><strong>Search File</strong></label>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search..."
+            onkeyup="filterImages()"
+          />
+        </div>
+        <div class="upload-container">
+          <label class="upload-btn">
+            Upload Images
+            <input type="file" multiple id="imageUpload" style="display: none" />
+          </label>
+          <label class="upload-folder-btn">
+            Upload Folder
+            <input
+              type="file"
+              id="folderUpload"
+              webkitdirectory
+              directory
+              style="display: none"
+            />
+          </label>
+        </div>
+        <div class="image-preview" id="imagePreview"></div>
+      </div>
+
+    <script>
+        const serverUrl = "http://localhost:5000";
+
+        async function getCurrentProjectId() {
+            const response = await fetch(`${serverUrl}/api/projects/current`);
+            const data = await response.json();
+            return data.project_id;
+        }
+
+        async function uploadImages(event) {
+            const files = event.target.files;
+            const projectId = await getCurrentProjectId();
+            if (!projectId) return;
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append("images", file);
+            }
+            formData.append("project_id", projectId);
+
+            await fetch(`${serverUrl}/api/images/upload`, { method: "POST", body: formData });
+            loadImages();
+        }
+
+        async function loadImages() {
+            const projectId = await getCurrentProjectId();
+            if (!projectId) return;
+
+            const response = await fetch(`${serverUrl}/api/images?project_id=${projectId}`);
+            const images = await response.json();
+
+            const imagePreview = document.getElementById("imagePreview");
+            imagePreview.innerHTML = "";
+            
+            images.forEach((image) => {
+                const imageContainer = document.createElement("div");
+                imageContainer.classList.add("image-container");
+
+                const img = document.createElement("img");
+                img.src = `${serverUrl}/${image.file_path}`;
+
+                const deleteBtn = document.createElement("button");
+                deleteBtn.innerText = "X";
+                deleteBtn.classList.add("delete-btn");
+                deleteBtn.onclick = () => deleteImage(image.image_id);
+
+                imageContainer.appendChild(deleteBtn);
+                imageContainer.appendChild(img);
+                imagePreview.appendChild(imageContainer);
+            });
+        }
+
+        async function deleteImage(imageId) {
+            await fetch(`${serverUrl}/api/images/${imageId}`, { method: "DELETE" });
+            loadImages();
+        }
+
+        document.getElementById("imageUpload").addEventListener("change", uploadImages);
+        window.onload = loadImages;
+    </script>
+
+</body>
+</html>
