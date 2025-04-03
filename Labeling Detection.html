@@ -117,19 +117,60 @@
             display: block; 
             margin: 10px 0; 
             padding: 10px; }
+        
+            .left-sidebar {
+    width: 80px;
+    height: 100vh;
+    background: #1e1e2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 80px; /* Ensure enough space from top */
+    gap: 10px;
+    position: fixed;
+    left: 0;
+    top: 0;
+}
+
+.menu-item {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-size: 12px;
+    text-align: center;
+}
+
+.menu-item .icon {
+    font-size: 18px;
+    margin-bottom: 5px;
+}
+
+.menu-item:hover,
+.menu-item.active {
+    background: #00f0ff;
+    color: black;
+}
+
 
     </style>
     
 </head>
 <body>
-    <button id="backButton" class="back-btn">⬅ Back</button>
+    
     <div class="container">
         <div class="sidebar" id="imageList"></div>
         <div class="main-content">
             <div class="navbar">
-                <button onclick="triggerFileUpload()">Add Picture</button>
+                <button id="backButton" class="back-btn">⬅ Back</button>
                 <button onclick="showPopup()">Create Label</button>
-                <button onclick="exportYolo()">Export</button>
             </div>
             <input type="file" id="fileInput" accept="image/*" multiple hidden>
             <canvas id="imageCanvas"></canvas>
@@ -143,6 +184,36 @@
             </div>
         </div>
     </div>
+        
+    <div class="left-sidebar">
+        <div class="menu-item">
+            <span class="icon">🖼️</span>
+            <span>All Images</span>
+        </div>
+        <div class="menu-item active">
+            <span class="icon">🔲</span>
+            <span>Labels</span>
+        </div>
+        <div class="menu-item">
+            <span class="icon">📋</span>
+            <span>Attributes</span>
+        </div>
+        <div class="menu-item">
+            <span class="icon">💬</span>
+            <span>Comments</span>
+        </div>
+        <div class="menu-item">
+            <span class="icon">🔄</span>
+            <span>History</span>
+        </div>
+        <div class="menu-item">
+            <span class="icon">🖥️</span>
+            <span>Raw Data</span>
+        </div>
+    </div>
+    
+    
+
 
         </div>
     </div>
@@ -160,517 +231,394 @@
         <button onclick="updateLabel()">Update</button>
         <button onclick="closeEditPopup()">Cancel</button>
     </div>    
-
-    <script src="script.js"></script>
     <script>
-         document.getElementById("backButton").addEventListener("click", function() {
-            window.location.href = "Project.html";
+        // Database connection settings
+        const serverUrl = "http://localhost:5000"; // Your backend API URL
+        let currentProjectId = null;
+        let currentImageId = null;
+        let labels = [];
+        let currentLabelId = null;
+        let isDrawing = false;
+        let startX, startY;
+        let rectangles = []; // Stores drawn rectangles {x, y, width, height, labelId}
+        let selectedLabelId = null;
+        
+        // Canvas setup
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const imageList = document.getElementById('imageList');
+        const labelList = document.getElementById('labelList');
+        const drawnLabels = document.getElementById('drawnLabels');
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Get project ID from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            currentProjectId = urlParams.get('id');
+            
+            if (!currentProjectId) {
+                alert('No project ID specified');
+                return;
+            }
+        
+            // Load project data
+            await loadProject(currentProjectId);
+            
+            // Load images for this project
+            await loadImages(currentProjectId);
+            
+            // Load labels for this project
+            await loadLabels(currentProjectId);
+            
+            // Setup canvas event listeners
+            setupCanvasEvents();
         });
-        let images = [], activeLabelId = null, labels = {}, selectedImage = null;
-        const fileInput = document.getElementById("fileInput");
-        const imageList = document.getElementById("imageList");
-        const labelsContainer = document.getElementById("labels-container");
-        const canvas = document.getElementById("imageCanvas");
-        const ctx = canvas.getContext("2d");
-        let drawing = false, startX, startY;
-        let tempBox = { x: 0, y: 0, w: 0, h: 0 };
-        let editingLabelId = null;
-
-        let db;
-
-// Open IndexedDB Database
-function openDatabase() {
-    let request = indexedDB.open("ImageDatabase", 1);
-
-    request.onsuccess = function(event) {
-        db = event.target.result;
-        loadImage();
-    };
-
-    request.onerror = function(event) {
-        console.log("Database error:", event.target.errorCode);
-    };
-}
-
-    // Load Image using ID from URL
-    function loadImages() {
-            imageList.innerHTML = "";
-            let transaction = db.transaction(["images"], "readonly");
-            let objectStore = transaction.objectStore("images");
-            let request = objectStore.openCursor();
-            request.onsuccess = function(event) {
-                let cursor = event.target.result;
-                if (cursor) {
-                    let imgElement = document.createElement("div");
-                    imgElement.className = "image-item";
-                    imgElement.innerHTML = `<img src="${cursor.value.image}" width="100"><br>Image ${cursor.key}`;
-                    imgElement.onclick = function() {
-                        selectedImage = cursor.value;
-                        drawImage(cursor.value.image);
-                    };
-                    imageList.appendChild(imgElement);
-                    cursor.continue();
-                }
-            };
-        }
-
-    document.addEventListener("DOMContentLoaded", openDatabase);
-
-        fileInput.addEventListener("change", event => {
-        console.log("Files Selected:", event.target.files);
-    });
-
-        function triggerFileUpload() { fileInput.click(); }
-
-        let currentIndex = 0;
-
-        async function fetchImages() {
+        
+        // Back button functionality
+        document.getElementById('backButton').addEventListener('click', () => {
+            window.location.href = `Upload.html?id=${currentProjectId}`;
+        });
+        
+        // Load project data
+        async function loadProject(projectId) {
             try {
-                const response = await fetch('/api/get-images'); // Fetch images from the Project.html database
-                images = await response.json();
+                const response = await fetch(`${serverUrl}/api/projects/${projectId}`);
+                if (!response.ok) throw new Error('Failed to load project');
+                
+                const project = await response.json();
+                document.title = `Labeling - ${project.project_name}`;
+            } catch (error) {
+                console.error('Error loading project:', error);
+                alert('Failed to load project data');
+            }
+        }
+        
+        // Load images for project
+        async function loadImages(projectId) {
+            try {
+                const response = await fetch(`${serverUrl}/api/images/${projectId}`);
+                if (!response.ok) throw new Error('Failed to load images');
+                
+                const images = await response.json();
+                renderImageList(images);
+                
                 if (images.length > 0) {
-                    document.getElementById('galleryImage').src = images[0].url;
+                    await loadImage(images[0].image_id);
                 }
             } catch (error) {
-                console.error('Error fetching images:', error);
+                console.error('Error loading images:', error);
+                alert('Failed to load images');
             }
         }
-
         
-        document.getElementById('imageSelector').addEventListener('change', function() {
-            document.getElementById('selectedImage').src = this.value;
-        });
-        
-        fetchImages();
-
-        fileInput.addEventListener("change", event => {
-    [...event.target.files].forEach((file, index) => {
-        const reader = new FileReader();
-        reader.onload = e => {
-            const img = new Image();
-            img.src = e.target.result;
-            img.classList.add("image-thumbnail");
-            img.onclick = () => setImage(img, e.target.result);
-
-            // Create container for image and delete button
-            const imageContainer = document.createElement("div");
-            imageContainer.style.display = "flex";
-            imageContainer.style.alignItems = "center";
-            imageContainer.style.justifyContent = "space-between";
-            imageContainer.style.marginBottom = "5px";
-
-            // Create delete button
-            const deleteBtn = document.createElement("button");
-            deleteBtn.innerHTML = "❌";
-            deleteBtn.style.background = "red";
-            deleteBtn.style.color = "white";
-            deleteBtn.style.border = "none";
-            deleteBtn.style.cursor = "pointer";
-            deleteBtn.style.marginLeft = "5px";
-            deleteBtn.onclick = () => deleteImage(img, imageContainer);
-
-            // Append image and delete button to the container
-            imageContainer.appendChild(img);
-            imageContainer.appendChild(deleteBtn);
-
-            // Append to sidebar
-            imageList.appendChild(imageContainer);
-            images.push({ src: e.target.result, labels: [], id: Date.now() }); // Add unique ID
-
-            // Set the first image as selected by default
-            if (!selectedImage) setImage(img, e.target.result);
-        };
-        reader.readAsDataURL(file);
-    });
-});
-
-        function initDB() {
-            let request = indexedDB.open("ImageDB", 1);
-            request.onupgradeneeded = function(event) {
-                db = event.target.result;
-                let objectStore = db.createObjectStore("images", { keyPath: "id", autoIncrement: true });
-                objectStore.createIndex("image", "image", { unique: false });
-                objectStore.createIndex("labels", "labels", { unique: false });
-            };
-            request.onsuccess = function(event) {
-                db = event.target.result;
-                loadImages();
-            };
-            request.onerror = function(event) {
-                console.error("Database error: ", event.target.errorCode);
-            };
-        }
-
-        function saveImageToDB(imageData) {
-            let transaction = db.transaction(["images"], "readwrite");
-            let objectStore = transaction.objectStore("images");
-            let request = objectStore.add({ image: imageData, labels: [] });
-            request.onsuccess = function() {
-                loadImages();
-            };
-        }
-
-        // Set Image on Canvas
-        function setImage(imgElement, src) {
-            selectedImage = images.find(image => image.src === src);
-            if (!selectedImage) return;
-
-            const img = new Image();
-            img.src = src;
-            img.onload = () => {
-                // Set canvas size to match the image
-                canvas.width = img.width;
-                canvas.height = img.height;
-
-                // Draw the image on the canvas
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                // Load labels for the image (if any)
-                loadLabels();
-            };
-        }
-
-    // Load Labels for the Image
-    function loadLabels() {
-        if (!selectedImage) return;
-
-        const imageId = selectedImage.id; // Use the selected image's ID
-        if (!imageId) return;
-
-        let transaction = db.transaction(["images"], "readonly");
-        let store = transaction.objectStore("images");
-        let request = store.get(imageId);
-
-        request.onsuccess = function(event) {
-            let image = event.target.result;
-            if (image && image.labels) {
-                image.labels.forEach(label => {
-                    addDrawnLabelToSidebar(label); // Add labels to the sidebar
-                });
-                drawLabels(); // Draw labels on the canvas
-            }
-        };
-    }
-
-    // Initialize on Page Load
-    document.addEventListener("DOMContentLoaded", openDatabase);
-
-        function showPopup() { document.getElementById("labelPopup").style.display = "block"; }
-        function closePopup() { document.getElementById("labelPopup").style.display = "none"; }
-
-    function createLabel() {
-        const name = document.getElementById("labelName").value;
-        const color = document.getElementById("labelColor").value;
-        if (!name) return alert("Label name is required!");
-
-        const labelId = `label_${Date.now()}`; // Unique ID
-        labels[labelId] = { name, color };
-
-        // Create label UI in the top section
-        const labelDiv = document.createElement("div");
-        labelDiv.classList.add("label-box");
-        labelDiv.style.backgroundColor = color;
-        labelDiv.setAttribute("data-id", labelId);
-    
-            labelDiv.innerHTML = `
-                <span contenteditable="true" oninput='editLabelName("${labelId}", this.innerText)'>${name}</span>
-                <button onclick='editLabel("${labelId}")'>✏️</button>
-                <button onclick='deleteLabel("${labelId}", this)'> 🗑 </button>
-                <div style="margin-top: 5px;">
-                    <button onclick='Labeling("${labelId}")'>Labeling</button> 
-                </div>
-            `;
-
-            labelDiv.onclick = () => { activeLabelId = labelId; };
-            document.getElementById("labelList").appendChild(labelDiv); // Add to the top section
-            closePopup();
-        }
-
-
-        function editLabel(labelId) {
-            editingLabelId = labelId;
-            const label = labels[labelId];
-
-            if (!label) return alert("Label not found!");
-
-            // Fill the popup fields with current values
-            document.getElementById("editLabelName").value = label.name;
-            document.getElementById("editLabelColor").value = label.color;
-
-            // Show the edit popup
-            document.getElementById("editLabelPopup").style.display = "block";
-        }
-
-        function closeEditPopup() {
-            document.getElementById("editLabelPopup").style.display = "none";
-        }
-
-        function updateLabel() {
-            if (!editingLabelId) return;
-
-            const newName = document.getElementById("editLabelName").value;
-            const newColor = document.getElementById("editLabelColor").value;
-
-            if (!newName.trim()) return alert("Label name is required!");
-
-            labels[editingLabelId].name = newName;
-            labels[editingLabelId].color = newColor;
-
-            // Update UI: Sidebar labels
-            const labelDiv = document.querySelector(`.label-box[data-id="${editingLabelId}"]`);
-            if (labelDiv) {
-                labelDiv.style.backgroundColor = newColor;
-                labelDiv.querySelector("span").innerText = newName;
-            }
-
-            // Update all drawn labels
-            selectedImage.labels.forEach(label => {
-                if (label.labelId === editingLabelId) {
-                    label.color = newColor;
-                }
-            });
-
-            // Update drawn labels in sidebar
-            const drawnLabelDivs = document.querySelectorAll(`#drawnLabels .label-box[data-label-id="${editingLabelId}"]`);
-            drawnLabelDivs.forEach(div => {
-                div.style.border = `2px solid ${newColor}`;
-                const spanElement = div.querySelector("strong");
-                if (spanElement) spanElement.innerText = newName;
-                spanElement.style.color = newColor; // Change text color
-            });
-
-            drawLabels(); // Redraw updated labels on the canvas
-            closeEditPopup(); // Close the popup
-        }
-
-        function deleteLabel(labelId, button) {
-            // Check if the label is used in any image
-            let isUsed = images.some(image => image.labels.some(label => label.labelId === labelId));
-
-            if (isUsed) {
-                // Show confirmation popup if label is used
-                const confirmDelete = confirm("This label is used in images. Are you sure you want to delete it?");
-                if (!confirmDelete) return; // If user cancels, exit function
-            }
-
-            // Remove the label from all images
+        // Render image thumbnails
+        function renderImageList(images) {
+            imageList.innerHTML = '';
             images.forEach(image => {
-                image.labels = image.labels.filter(label => label.labelId !== labelId);
+                const imgElement = document.createElement('img');
+                imgElement.src = `${serverUrl}${image.file_path}`;
+                imgElement.className = 'image-thumbnail';
+                imgElement.dataset.id = image.image_id;
+                imgElement.addEventListener('click', () => loadImage(image.image_id));
+                imageList.appendChild(imgElement);
             });
-
-            // Remove the label from the UI
-            const labelDiv = document.querySelector(`.label-box[data-id="${labelId}"]`);
-            if (labelDiv) {
-                labelDiv.remove();
-            }
-
-            // Remove from drawn labels container
-            const drawnLabelDivs = document.querySelectorAll(`#drawnLabels .label-box[data-label-id="${labelId}"]`);
-            drawnLabelDivs.forEach(div => div.remove());
-
-            // Redraw labels
-            drawLabels();
         }
-
-    canvas.addEventListener("mousedown", (e) => {
-        if (!activeLabelId || !selectedImage) return; // Ensure an image and label are selected
-        drawing = true;
-        startX = e.offsetX;
-        startY = e.offsetY;
-        tempBox = { x: startX, y: startY, w: 0, h: 0, color: labels[activeLabelId].color };
-    });
-
-    canvas.addEventListener("mousemove", (e) => {
-        if (!drawing || !selectedImage) return; // Ensure an image is selected
-
-        const currentX = e.offsetX;
-        const currentY = e.offsetY;
-
-        // Update tempBox dimensions
-        tempBox.w = currentX - startX;
-        tempBox.h = currentY - startY;
-
-        drawLabels(); // Redraw existing labels
-        drawTempBox(); // Draw the temporary box while drawing
-    });
-
-    canvas.addEventListener("mouseup", (e) => {
-        if (!drawing || !selectedImage) return; // Ensure an image is selected
-        drawing = false;
-
-        const endX = e.offsetX;
-        const endY = e.offsetY;
-
-        const newLabel = {
-            x: startX, y: startY,
-            w: endX - startX, h: endY - startY,
-            labelId: activeLabelId,
-            color: labels[activeLabelId].color
-        };
-
-        // Add the label to the selected image
-        selectedImage.labels.push(newLabel);
-
-        // Save the label to IndexedDB
-        saveLabelToIndexedDB(newLabel);
-
-        // Add the label to the sidebar
-        addDrawnLabelToSidebar(newLabel);
-
-        // Redraw labels on the canvas
-        drawLabels();
-
-        // Reset temporary box after label is drawn
-        tempBox = { x: 0, y: 0, w: 0, h: 0 };
-    });
-
-        function drawTempBox() {
-            ctx.strokeStyle = tempBox.color;
-            ctx.fillStyle = tempBox.color + "40"; // Semi-transparent fill
+        
+        // Load specific image
+        async function loadImage(imageId) {
+            try {
+                currentImageId = imageId;
+                
+                // Highlight selected image
+                document.querySelectorAll('.image-thumbnail').forEach(img => {
+                    img.classList.remove('selected');
+                });
+                document.querySelector(`.image-thumbnail[data-id="${imageId}"]`).classList.add('selected');
+                
+                // Load image data
+                const response = await fetch(`${serverUrl}/api/images/${imageId}/annotations}`);
+                const annotations = await response.json();
+                
+                // Load and draw image
+                const img = new Image();
+                const imageResponse = await fetch(`${serverUrl}/api/images/${imageId}`);
+                const imageData = await imageResponse.json();
+                
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Draw existing annotations
+                    rectangles = annotations.map(ann => ({
+                        x: ann.x_min * canvas.width,
+                        y: ann.y_min * canvas.height,
+                        width: (ann.x_max - ann.x_min) * canvas.width,
+                        height: (ann.y_max - ann.y_min) * canvas.height,
+                        labelId: ann.label_id
+                    }));
+                    
+                    drawRectangles();
+                };
+                img.src = `${serverUrl}${imageData.file_path}`;
+            } catch (error) {
+                console.error('Error loading image:', error);
+            }
+        }
+        
+        // Load labels for project
+        async function loadLabels(projectId) {
+            try {
+                const response = await fetch(`${serverUrl}/api/projects/${projectId}/labels}`);
+                if (!response.ok) throw new Error('Failed to load labels');
+                
+                labels = await response.json();
+                renderLabelList();
+            } catch (error) {
+                console.error('Error loading labels:', error);
+            }
+        }
+        
+        // Render label list
+        function renderLabelList() {
+            labelList.innerHTML = '';
+            labels.forEach(label => {
+                const labelElement = document.createElement('div');
+                labelElement.className = 'label-box';
+                labelElement.textContent = label.label_name;
+                labelElement.style.backgroundColor = label.label_color || '#444';
+                labelElement.dataset.id = label.label_id;
+                
+                labelElement.addEventListener('click', () => {
+                    selectedLabelId = label.label_id;
+                    document.querySelectorAll('.label-box').forEach(box => {
+                        box.classList.remove('active');
+                    });
+                    labelElement.classList.add('active');
+                });
+                
+                labelList.appendChild(labelElement);
+            });
+        }
+        
+        // Canvas event handlers
+        function setupCanvasEvents() {
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+        }
+        
+        function startDrawing(e) {
+            if (!selectedLabelId) {
+                alert('Please select a label first');
+                return;
+            }
+            
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+        }
+        
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            // Clear and redraw
+            redrawCanvas();
+            
+            // Draw current rectangle
+            ctx.beginPath();
+            ctx.rect(startX, startY, currentX - startX, currentY - startY);
             ctx.lineWidth = 2;
-            ctx.strokeRect(tempBox.x, tempBox.y, tempBox.w, tempBox.h);
-            ctx.fillRect(tempBox.x, tempBox.y, tempBox.w, tempBox.h);
+            ctx.strokeStyle = '#00ff00';
+            ctx.stroke();
         }
-
-    function drawLabels() {
-        if (!selectedImage) return; // Ensure an image is selected
-
-        const img = new Image();
-        img.src = selectedImage.src;
-        img.onload = () => {
-            // Clear the canvas
+        
+        function stopDrawing(e) {
+            if (!isDrawing) return;
+            
+            isDrawing = false;
+            const rect = canvas.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+            
+            // Normalize coordinates (startX/Y might be greater than endX/Y)
+            const x = Math.min(startX, endX);
+            const y = Math.min(startY, endY);
+            const width = Math.abs(endX - startX);
+            const height = Math.abs(endY - startY);
+            
+            // Only save if significant size
+            if (width > 10 && height > 10) {
+                rectangles.push({
+                    x, y, width, height,
+                    labelId: selectedLabelId
+                });
+                
+                // Save to database
+                saveAnnotation(x, y, width, height, selectedLabelId);
+            }
+            
+            redrawCanvas();
+        }
+        
+        function redrawCanvas() {
+            // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Draw the selected image
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-            // Draw the labels for the selected image
-            selectedImage.labels.forEach(label => {
-                ctx.strokeStyle = label.color;
-                ctx.fillStyle = label.color + "40"; // Light fill
+            
+            // Redraw image
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0);
+                drawRectangles();
+            };
+            img.src = canvas.toDataURL();
+        }
+        
+        function drawRectangles() {
+            rectangles.forEach(rect => {
+                const label = labels.find(l => l.label_id === rect.labelId);
+                ctx.beginPath();
+                ctx.rect(rect.x, rect.y, rect.width, rect.height);
                 ctx.lineWidth = 2;
-                ctx.strokeRect(label.x, label.y, label.w, label.h);
-                ctx.fillRect(label.x, label.y, label.w, label.h);
-
-                // Draw label name
-                ctx.fillStyle = "white";
-                ctx.font = "12px Arial";
-                ctx.fillText(labels[label.labelId].name, label.x + 5, label.y + 15);
+                ctx.strokeStyle = label?.label_color || '#00ff00';
+                ctx.stroke();
+                
+                // Label text
+                ctx.fillStyle = label?.label_color || '#00ff00';
+                ctx.font = '12px Arial';
+                ctx.fillText(label?.label_name || 'Label', rect.x + 5, rect.y + 15);
             });
-
-            // Draw the temporary bounding box (if being drawn)
-            if (tempBox) {
-                ctx.strokeStyle = tempBox.color;
-                ctx.fillStyle = tempBox.color + "40"; // Semi-transparent preview
-                ctx.lineWidth = 2;
-                ctx.strokeRect(tempBox.x, tempBox.y, tempBox.w, tempBox.h);
-                ctx.fillRect(tempBox.x, tempBox.y, tempBox.w, tempBox.h);
+        }
+        
+        // Save annotation to database
+        async function saveAnnotation(x, y, width, height, labelId) {
+            try {
+                const annotation = {
+                    image_id: currentImageId,
+                    label_id: labelId,
+                    x_min: x / canvas.width,
+                    x_max: (x + width) / canvas.width,
+                    y_min: y / canvas.height,
+                    y_max: (y + height) / canvas.height
+                };
+                
+                const response = await fetch(`${serverUrl}/api/annotations`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(annotation)
+                });
+                
+                if (!response.ok) throw new Error('Failed to save annotation');
+                
+                const result = await response.json();
+                console.log('Annotation saved:', result);
+            } catch (error) {
+                console.error('Error saving annotation:', error);
             }
-        };
-    }
-
-        function addDrawnLabelToSidebar(label) {
-            const drawnLabelDiv = document.createElement("div");
-            drawnLabelDiv.classList.add("label-box");
-            drawnLabelDiv.style.border = `2px solid ${label.color}`;
-            drawnLabelDiv.setAttribute("data-label-id", label.labelId);
-
-            drawnLabelDiv.innerHTML = `
-                <strong style="color: ${label.color}">${labels[label.labelId].name}</strong>
-                <div>(${label.x}, ${label.y}, ${label.w}, ${label.h})</div>
-                <button onclick="deleteDrawnLabel('${label.labelId}', this)">🗑 Remove</button>
-            `;
-
-            document.getElementById("drawnLabels").appendChild(drawnLabelDiv);
         }
-
-        function deleteDrawnLabel(labelId, button) {
-            const labelDiv = button.parentElement;
-    
-            // Extract label position details from the UI
-            const labelText = labelDiv.querySelector("div").innerText;
-            const match = labelText.match(/\((\d+), (\d+), (\d+), (\d+)\)/);
-    
-            if (!match) return; // Prevent errors if format is incorrect
-    
-            const [_, x, y, w, h] = match.map(Number); // Extract numbers from text
-    
-            // Remove only the label that matches both labelId and exact position
-            selectedImage.labels = selectedImage.labels.filter(label =>
-                !(label.labelId === labelId && label.x === x && label.y === y && label.w === w && label.h === h)
-            );
-
-            // Remove from UI
-            labelDiv.remove();
-    
-            // Redraw canvas without the deleted label
-            drawLabels();
+        
+        // Label creation popup
+        function showPopup() {
+            document.getElementById('labelPopup').style.display = 'block';
         }
-
-    function exportYolo() {
-        images.forEach(img => {
-            let yoloData = img.labels.map(label => {
-                const classId = label.labelId; // Make sure labelId is a numeric index
-                const xCenter = (label.x + label.w / 2) / img.width;  // Normalize using image width
-                const yCenter = (label.y + label.h / 2) / img.height; // Normalize using image height
-                const width = label.w / img.width;
-                const height = label.h / img.height;
-
-                return `${classId} ${xCenter.toFixed(6)} ${yCenter.toFixed(6)} ${width.toFixed(6)} ${height.toFixed(6)}`;
-            }).join("\n");
-
-            // Create a YOLO annotation file per image
-            const blob = new Blob([yoloData], { type: "text/plain" });
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = `${img.name.split('.')[0]}.txt`; // Save as "image_name.txt"
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        });
-    }
-
-
-    function deleteImage(imgElement, container) {
-        const imageId = selectedImage.id; // Use the selected image's ID
-        if (!imageId) return;
-
-        // Remove the image from the images array
-        images = images.filter(img => img.src !== imgElement.src);
-        container.remove();
-
-        // Remove the image from IndexedDB
-        let transaction = db.transaction(["images"], "readwrite");
-        let store = transaction.objectStore("images");
-        store.delete(imageId);
-
-        // Clear the canvas if no images are left
-        if (images.length === 0) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            selectedImage = null;
+        
+        function closePopup() {
+            document.getElementById('labelPopup').style.display = 'none';
         }
-    }
-
-    function saveLabelToIndexedDB(label) {
-        if (!selectedImage) return;
-
-        const imageId = selectedImage.id; // Use the selected image's ID
-        if (!imageId) return;
-
-        let transaction = db.transaction(["images"], "readwrite");
-        let store = transaction.objectStore("images");
-        let request = store.get(imageId);
-
-        request.onsuccess = function(event) {
-            let image = event.target.result;
-            if (image) {
-                if (!image.labels) image.labels = [];
-                image.labels.push(label);
-                store.put(image); // Update the image in IndexedDB
+        
+        async function createLabel() {
+            const name = document.getElementById('labelName').value;
+            const color = document.getElementById('labelColor').value;
+            
+            if (!name) {
+                alert('Please enter a label name');
+                return;
             }
-        };
-    }
-
-    </script>
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/labels`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        project_id: currentProjectId,
+                        label_name: name,
+                        label_color: color,
+                        label_category: 'default'
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to create label');
+                
+                const newLabel = await response.json();
+                labels.push(newLabel);
+                renderLabelList();
+                closePopup();
+            } catch (error) {
+                console.error('Error creating label:', error);
+                alert('Failed to create label');
+            }
+        }
+        
+        // Edit label popup
+        function showEditPopup(labelId) {
+            const label = labels.find(l => l.label_id === labelId);
+            if (!label) return;
+            
+            document.getElementById('editLabelName').value = label.label_name;
+            document.getElementById('editLabelColor').value = label.label_color || '#00ff00';
+            currentLabelId = labelId;
+            document.getElementById('editLabelPopup').style.display = 'block';
+        }
+        
+        function closeEditPopup() {
+            document.getElementById('editLabelPopup').style.display = 'none';
+        }
+        
+        async function updateLabel() {
+            const name = document.getElementById('editLabelName').value;
+            const color = document.getElementById('editLabelColor').value;
+            
+            if (!name) {
+                alert('Please enter a label name');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/labels/${currentLabelId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        label_name: name,
+                        label_color: color
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to update label');
+                
+                const updatedLabel = await response.json();
+                const index = labels.findIndex(l => l.label_id === currentLabelId);
+                if (index !== -1) {
+                    labels[index] = updatedLabel;
+                }
+                renderLabelList();
+                closeEditPopup();
+            } catch (error) {
+                console.error('Error updating label:', error);
+                alert('Failed to update label');
+            }
+        }
+        </script>
 </body>
 </html>

@@ -213,6 +213,9 @@
           margin-left: 0;
         }
       }
+      .error-message {
+    transition: opacity 0.5s ease;
+}
     </style>
         <button id="backButton" class="back-btn">⬅ Back</button>
 </head>
@@ -278,64 +281,180 @@
       </div>
 
     <script>
-        const serverUrl = "http://localhost:5000";
+            const serverUrl = "http://localhost:5000";
 
-        async function getCurrentProjectId() {
-            const response = await fetch(`${serverUrl}/api/projects/current`);
-            const data = await response.json();
-            return data.project_id;
+// Get project ID from URL query parameter
+function getProjectIdFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('id');
+}
+
+async function uploadImages(event) {
+    const files = event.target.files;
+    const projectId = getProjectIdFromUrl();
+    
+    if (!files.length || !projectId) {
+        showError("No files selected or missing project ID");
+        return;
+    }
+
+    const status = document.createElement('span');
+    status.textContent = "Uploading...";
+    status.style.color = "blue";
+    event.target.parentNode.appendChild(status);
+
+    const formData = new FormData();
+    for (let file of files) {
+        formData.append("images", file);
+    }
+
+    try {
+        // Add AbortController for timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+
+        const response = await fetch(`${serverUrl}/api/images/upload/${projectId}`, {
+            method: "POST",
+            body: formData,
+            signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || "Upload failed");
+        }
+        
+        const result = await response.json();
+        status.textContent = `Uploaded ${result.count} files`;
+        status.style.color = "green";
+        event.target.value = '';
+        await loadImages(projectId);
+    } catch (error) {
+        console.error("Upload failed:", error);
+        status.textContent = "Upload failed";
+        status.style.color = "red";
+        showError(error.name === 'AbortError' 
+            ? "Upload timed out (server took too long)" 
+            : error.message || "Upload failed");
+    } finally {
+        setTimeout(() => status.remove(), 3000);
+    }
+}
+
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.textContent = message;
+    errorDiv.style.position = 'fixed';
+    errorDiv.style.top = '20px';
+    errorDiv.style.right = '20px';
+    errorDiv.style.padding = '15px';
+    errorDiv.style.background = '#ff4444';
+    errorDiv.style.color = 'white';
+    errorDiv.style.borderRadius = '5px';
+    errorDiv.style.zIndex = '1000';
+    document.body.appendChild(errorDiv);
+    
+    setTimeout(() => {
+        errorDiv.style.opacity = '0';
+        setTimeout(() => errorDiv.remove(), 500);
+    }, 3000);
+}
+
+async function loadImages(projectId) {
+    if (!projectId) {
+        projectId = getProjectIdFromUrl();
+        if (!projectId) return;
+    }
+
+    try {
+        const response = await fetch(`${serverUrl}/api/images/${projectId}`);
+        if (!response.ok) {
+            throw new Error("Failed to load images");
         }
 
-        async function uploadImages(event) {
-            const files = event.target.files;
-            const projectId = await getCurrentProjectId();
-            if (!projectId) return;
+        const images = await response.json();
+        const imagePreview = document.getElementById("imagePreview");
+        imagePreview.innerHTML = "";
+        
+        images.forEach((image) => {
+            const imageContainer = document.createElement("div");
+            imageContainer.classList.add("image-container");
 
-            const formData = new FormData();
-            for (let file of files) {
-                formData.append("images", file);
-            }
-            formData.append("project_id", projectId);
+            const img = document.createElement("img");
+            img.src = `${serverUrl}${image.file_path}`;
+            img.alt = image.image_name;
 
-            await fetch(`${serverUrl}/api/images/upload`, { method: "POST", body: formData });
-            loadImages();
+            const deleteBtn = document.createElement("button");
+            deleteBtn.innerText = "X";
+            deleteBtn.classList.add("delete-btn");
+            deleteBtn.onclick = () => deleteImage(image.image_id);
+
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(deleteBtn);
+            imagePreview.appendChild(imageContainer);
+        });
+    } catch (error) {
+        console.error("Error loading images:", error);
+        showError("Failed to load images");
+    }
+}
+
+async function deleteImage(imageId) {
+    if (!confirm("Are you sure you want to delete this image?")) return;
+
+    try {
+        const response = await fetch(`${serverUrl}/api/images/${imageId}`, {
+            method: "DELETE"
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to delete image");
         }
 
-        async function loadImages() {
-            const projectId = await getCurrentProjectId();
-            if (!projectId) return;
+        loadImages(getProjectIdFromUrl());
+    } catch (error) {
+        console.error("Error deleting image:", error);
+        showError("Failed to delete image");
+    }
+}
 
-            const response = await fetch(`${serverUrl}/api/images?project_id=${projectId}`);
-            const images = await response.json();
+// Initialize when page loads
+document.addEventListener("DOMContentLoaded", function() {
+    const projectId = getProjectIdFromUrl();
+    const fileInput = document.getElementById('imageUpload');
+    const folderInput = document.getElementById('folderUpload');
+    
+    // Set up event listeners
+    if (fileInput) {
+        fileInput.addEventListener('change', uploadImages);
+    }
+    
+    // You can add similar handling for folder uploads here
+    if (folderInput) {
+        folderInput.addEventListener('change', uploadImages);
+    }
 
-            const imagePreview = document.getElementById("imagePreview");
-            imagePreview.innerHTML = "";
-            
-            images.forEach((image) => {
-                const imageContainer = document.createElement("div");
-                imageContainer.classList.add("image-container");
-
-                const img = document.createElement("img");
-                img.src = `${serverUrl}/${image.file_path}`;
-
-                const deleteBtn = document.createElement("button");
-                deleteBtn.innerText = "X";
-                deleteBtn.classList.add("delete-btn");
-                deleteBtn.onclick = () => deleteImage(image.image_id);
-
-                imageContainer.appendChild(deleteBtn);
-                imageContainer.appendChild(img);
-                imagePreview.appendChild(imageContainer);
+    if (projectId) {
+        // Set project name in header
+        fetch(`${serverUrl}/api/projects/${projectId}`)
+            .then(response => {
+                if (!response.ok) throw new Error("Failed to fetch project");
+                return response.json();
+            })
+            .then(project => {
+                document.getElementById("projectName").textContent = project.project_name;
+            })
+            .catch(error => {
+                console.error("Error loading project:", error);
+                showError("Failed to load project details");
             });
-        }
 
-        async function deleteImage(imageId) {
-            await fetch(`${serverUrl}/api/images/${imageId}`, { method: "DELETE" });
-            loadImages();
-        }
-
-        document.getElementById("imageUpload").addEventListener("change", uploadImages);
-        window.onload = loadImages;
+        loadImages(projectId);
+    }
+});
     </script>
 
 </body>
