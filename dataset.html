@@ -215,10 +215,34 @@
 
     <script>
         // Back button functionality
-       document.getElementById("backButton").addEventListener("click", function() {
-            window.location.href = "CreateProject.html";
-        });
+        // Back button
+        document.getElementById("backButton").addEventListener("click", function () {
+        window.location.href = "CreateProject.html";
+    });
 
+    document.getElementById("menu-upload").addEventListener("click", function () {
+    const projectId = getProjectIdFromUrl();
+    if (projectId) {
+        window.location.href = `Upload.html?id=${projectId}`;
+    } else {
+        showError("Project ID is missing");
+    }
+});
+
+document.getElementById("menu-labeling").addEventListener("click", function () {
+    const projectId = getProjectIdFromUrl();
+    if (projectId) {
+        window.location.href = `labeling.html?id=${projectId}`;
+    } else {
+        showError("Project ID is missing");
+    }
+});
+
+// Get project ID from URL query parameter
+function getProjectIdFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('id');
+}
         // Export button functionality
         document.getElementById("exportButton").addEventListener("click", function() {
             alert("Export functionality will be implemented here!");
@@ -286,6 +310,43 @@
             imageContainer.appendChild(img);
             imagePreview.appendChild(imageContainer);
         }
+
+        async function loadImages(projectId) {
+    try {
+        const response = await fetch(`${serverUrl}/api/images/${projectId}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        if (!response.ok) throw new Error("Failed to load images");
+        
+        const images = await response.json();
+        const imagePreview = document.getElementById("imagePreview");
+        imagePreview.innerHTML = "";
+        
+        images.forEach((image) => {
+            const imageContainer = document.createElement("div");
+            imageContainer.classList.add("image-container");
+            imageContainer.dataset.id = image.image_id;
+
+            const img = document.createElement("img");
+            img.src = `${serverUrl}${image.file_path}`;
+            img.alt = image.image_name;
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.innerText = "X";
+            deleteBtn.classList.add("delete-btn");
+            deleteBtn.onclick = () => deleteImage(image.image_id);
+
+            imageContainer.appendChild(deleteBtn);
+            imageContainer.appendChild(img);
+            imagePreview.appendChild(imageContainer);
+        });
+    } catch (error) {
+        console.error("Error loading images:", error);
+        showError("Failed to load images");
+    }
+}
 
 
        document.addEventListener("DOMContentLoaded", function() {

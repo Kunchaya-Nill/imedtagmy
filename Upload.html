@@ -217,9 +217,10 @@
     transition: opacity 0.5s ease;
 }
     </style>
-        <button id="backButton" class="back-btn">⬅ Back</button>
+
 </head>
 <body>
+  <button id="backButton" class="back-btn">⬅ Back</button>
     <!-- Header -->
     <div class="header">
         <div class="project-name" id="projectName">
@@ -281,7 +282,29 @@
       </div>
 
     <script>
-            const serverUrl = "http://localhost:5000";
+      const serverUrl = "http://localhost:5000";
+
+      document.getElementById("backButton").addEventListener("click", function () {
+        window.location.href = "CreateProject.html";
+    });
+
+    document.getElementById("menu-labeling").addEventListener("click", function () {
+    const projectId = getProjectIdFromUrl();
+    if (projectId) {
+        window.location.href = `labeling.html?id=${projectId}`;
+    } else {
+        showError("Project ID is missing");
+    }
+});
+
+document.getElementById("menu-dataset").addEventListener("click", function () {
+    const projectId = getProjectIdFromUrl();
+    if (projectId) {
+        window.location.href = `dataset.html?id=${projectId}`;
+    } else {
+        showError("Project ID is missing");
+    }
+});
 
 // Get project ID from URL query parameter
 function getProjectIdFromUrl() {
@@ -298,6 +321,7 @@ async function uploadImages(event) {
         return;
     }
 
+    // Create a status element
     const status = document.createElement('span');
     status.textContent = "Uploading...";
     status.style.color = "blue";
@@ -309,27 +333,32 @@ async function uploadImages(event) {
     }
 
     try {
-        // Add AbortController for timeout
+        // Add timeout controller
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
         const response = await fetch(`${serverUrl}/api/images/upload/${projectId}`, {
             method: "POST",
             body: formData,
-            signal: controller.signal
+            signal: controller.signal,
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
         });
 
-        clearTimeout(timeout);
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || "Upload failed");
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || `Server error: ${response.status}`);
         }
         
         const result = await response.json();
         status.textContent = `Uploaded ${result.count} files`;
         status.style.color = "green";
         event.target.value = '';
+        
+        // Reload images
         await loadImages(projectId);
     } catch (error) {
         console.error("Upload failed:", error);
@@ -337,9 +366,14 @@ async function uploadImages(event) {
         status.style.color = "red";
         showError(error.name === 'AbortError' 
             ? "Upload timed out (server took too long)" 
-            : error.message || "Upload failed");
+            : error.message || "Upload failed. Check console for details.");
     } finally {
-        setTimeout(() => status.remove(), 3000);
+        // Remove status element after delay
+        setTimeout(() => {
+            if (status.parentNode) {
+                status.parentNode.removeChild(status);
+            }
+        }, 3000);
     }
 }
 
@@ -364,17 +398,14 @@ function showError(message) {
 }
 
 async function loadImages(projectId) {
-    if (!projectId) {
-        projectId = getProjectIdFromUrl();
-        if (!projectId) return;
-    }
-
     try {
-        const response = await fetch(`${serverUrl}/api/images/${projectId}`);
-        if (!response.ok) {
-            throw new Error("Failed to load images");
-        }
-
+        const response = await fetch(`${serverUrl}/api/images/${projectId}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+        if (!response.ok) throw new Error("Failed to load images");
+        
         const images = await response.json();
         const imagePreview = document.getElementById("imagePreview");
         imagePreview.innerHTML = "";
@@ -382,6 +413,7 @@ async function loadImages(projectId) {
         images.forEach((image) => {
             const imageContainer = document.createElement("div");
             imageContainer.classList.add("image-container");
+            imageContainer.dataset.id = image.image_id;
 
             const img = document.createElement("img");
             img.src = `${serverUrl}${image.file_path}`;
@@ -392,8 +424,8 @@ async function loadImages(projectId) {
             deleteBtn.classList.add("delete-btn");
             deleteBtn.onclick = () => deleteImage(image.image_id);
 
-            imageContainer.appendChild(img);
             imageContainer.appendChild(deleteBtn);
+            imageContainer.appendChild(img);
             imagePreview.appendChild(imageContainer);
         });
     } catch (error) {
@@ -407,14 +439,18 @@ async function deleteImage(imageId) {
 
     try {
         const response = await fetch(`${serverUrl}/api/images/${imageId}`, {
-            method: "DELETE"
+            method: "DELETE",
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
         });
 
         if (!response.ok) {
             throw new Error("Failed to delete image");
         }
 
-        loadImages(getProjectIdFromUrl());
+        // Remove from UI
+        document.querySelector(`.image-container[data-id="${imageId}"]`)?.remove();
     } catch (error) {
         console.error("Error deleting image:", error);
         showError("Failed to delete image");

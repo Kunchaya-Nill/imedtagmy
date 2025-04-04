@@ -233,7 +233,7 @@
     </div>    
     <script>
         // Database connection settings
-        const serverUrl = "http://localhost:5000"; // Your backend API URL
+        const serverUrl = "http://localhost:5000";
         let currentProjectId = null;
         let currentImageId = null;
         let labels = [];
@@ -252,31 +252,48 @@
         
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', async () => {
-            // Get project ID from URL
-            const urlParams = new URLSearchParams(window.location.search);
-            currentProjectId = urlParams.get('id');
-            
-            if (!currentProjectId) {
-                alert('No project ID specified');
-                return;
-            }
-        
-            // Load project data
-            await loadProject(currentProjectId);
-            
-            // Load images for this project
-            await loadImages(currentProjectId);
-            
-            // Load labels for this project
-            await loadLabels(currentProjectId);
-            
-            // Setup canvas event listeners
-            setupCanvasEvents();
-        });
+  // Check if user is logged in
+  const token = localStorage.getItem('token');
+  if (!token) {
+    window.location.href = 'login.html';
+    return;
+  }
+
+  // Get project ID from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  currentProjectId = urlParams.get('id');
+  
+  if (!currentProjectId) {
+    alert('No project ID specified');
+    window.location.href = 'projects.html';
+    return;
+  }
+
+  try {
+    // Load project data with auth header
+    await loadProject(currentProjectId);
+    
+    // Load images for this project with auth header
+    await loadImages(currentProjectId);
+    
+    // Load labels for this project with auth header
+    await loadLabels(currentProjectId);
+    
+    // Setup canvas event listeners
+    setupCanvasEvents();
+  } catch (error) {
+    console.error('Initialization error:', error);
+    if (error.message.includes('401')) {
+      window.location.href = 'login.html';
+    } else {
+      alert('Failed to initialize application');
+    }
+  }
+});
         
         // Back button functionality
         document.getElementById('backButton').addEventListener('click', () => {
-            window.location.href = `Upload.html?id=${currentProjectId}`;
+            window.location.href = `projects.html?id=${currentProjectId}`;
         });
         
         // Load project data
@@ -289,7 +306,7 @@
                 document.title = `Labeling - ${project.project_name}`;
             } catch (error) {
                 console.error('Error loading project:', error);
-                alert('Failed to load project data');
+                throw error;
             }
         }
         
@@ -307,7 +324,7 @@
                 }
             } catch (error) {
                 console.error('Error loading images:', error);
-                alert('Failed to load images');
+                throw error;
             }
         }
         
@@ -333,18 +350,28 @@
                 document.querySelectorAll('.image-thumbnail').forEach(img => {
                     img.classList.remove('selected');
                 });
-                document.querySelector(`.image-thumbnail[data-id="${imageId}"]`).classList.add('selected');
+                document.querySelector(`.image-thumbnail[data-id="${imageId}"]`)?.classList.add('selected');
                 
                 // Load image data
-                const response = await fetch(`${serverUrl}/api/images/${imageId}/annotations}`);
-                const annotations = await response.json();
-                
-                // Load and draw image
                 const img = new Image();
                 const imageResponse = await fetch(`${serverUrl}/api/images/${imageId}`);
+                if (!imageResponse.ok) throw new Error('Failed to load image data');
+                
                 const imageData = await imageResponse.json();
                 
+                // Load annotations
+                let annotations = [];
+                try {
+                    const annotationsResponse = await fetch(`${serverUrl}/api/images/${imageId}/annotations`);
+                    if (annotationsResponse.ok) {
+                        annotations = await annotationsResponse.json();
+                    }
+                } catch (annError) {
+                    console.warn('Could not load annotations:', annError);
+                }
+                
                 img.onload = () => {
+                    // Set canvas dimensions to match image
                     canvas.width = img.width;
                     canvas.height = img.height;
                     ctx.drawImage(img, 0, 0);
@@ -363,19 +390,31 @@
                 img.src = `${serverUrl}${imageData.file_path}`;
             } catch (error) {
                 console.error('Error loading image:', error);
+                throw error;
             }
         }
         
         // Load labels for project
         async function loadLabels(projectId) {
-            try {
-                const response = await fetch(`${serverUrl}/api/projects/${projectId}/labels}`);
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const response = await fetch(`${serverUrl}/api/projects/${projectId}/labels`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
                 if (!response.ok) throw new Error('Failed to load labels');
                 
                 labels = await response.json();
                 renderLabelList();
             } catch (error) {
                 console.error('Error loading labels:', error);
+                throw error;
             }
         }
         
@@ -388,6 +427,11 @@
                 labelElement.textContent = label.label_name;
                 labelElement.style.backgroundColor = label.label_color || '#444';
                 labelElement.dataset.id = label.label_id;
+                
+                // Add double-click for editing
+                labelElement.addEventListener('dblclick', () => {
+                    showEditPopup(label.label_id);
+                });
                 
                 labelElement.addEventListener('click', () => {
                     selectedLabelId = label.label_id;
@@ -455,13 +499,14 @@
             
             // Only save if significant size
             if (width > 10 && height > 10) {
-                rectangles.push({
+                const newRect = {
                     x, y, width, height,
                     labelId: selectedLabelId
-                });
+                };
+                rectangles.push(newRect);
                 
                 // Save to database
-                saveAnnotation(x, y, width, height, selectedLabelId);
+                saveAnnotation(newRect);
             }
             
             redrawCanvas();
@@ -483,50 +528,61 @@
         function drawRectangles() {
             rectangles.forEach(rect => {
                 const label = labels.find(l => l.label_id === rect.labelId);
+                if (!label) return;
+                
                 ctx.beginPath();
                 ctx.rect(rect.x, rect.y, rect.width, rect.height);
                 ctx.lineWidth = 2;
-                ctx.strokeStyle = label?.label_color || '#00ff00';
+                ctx.strokeStyle = label.label_color || '#00ff00';
                 ctx.stroke();
                 
                 // Label text
-                ctx.fillStyle = label?.label_color || '#00ff00';
+                ctx.fillStyle = label.label_color || '#00ff00';
                 ctx.font = '12px Arial';
-                ctx.fillText(label?.label_name || 'Label', rect.x + 5, rect.y + 15);
+                ctx.fillText(label.label_name, rect.x + 5, rect.y + 15);
             });
         }
         
         // Save annotation to database
-        async function saveAnnotation(x, y, width, height, labelId) {
+        async function saveAnnotation(rect) {
             try {
                 const annotation = {
                     image_id: currentImageId,
-                    label_id: labelId,
-                    x_min: x / canvas.width,
-                    x_max: (x + width) / canvas.width,
-                    y_min: y / canvas.height,
-                    y_max: (y + height) / canvas.height
+                    label_id: rect.labelId,
+                    x_min: rect.x / canvas.width,
+                    x_max: (rect.x + rect.width) / canvas.width,
+                    y_min: rect.y / canvas.height,
+                    y_max: (rect.y + rect.height) / canvas.height
                 };
                 
                 const response = await fetch(`${serverUrl}/api/annotations`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
                     body: JSON.stringify(annotation)
                 });
                 
-                if (!response.ok) throw new Error('Failed to save annotation');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to save annotation');
+                }
                 
                 const result = await response.json();
                 console.log('Annotation saved:', result);
             } catch (error) {
                 console.error('Error saving annotation:', error);
+                // Remove the rectangle if save failed
+                rectangles = rectangles.filter(r => r !== rect);
+                redrawCanvas();
             }
         }
         
         // Label creation popup
         function showPopup() {
+            document.getElementById('labelName').value = '';
+            document.getElementById('labelColor').value = '#00ff00';
             document.getElementById('labelPopup').style.display = 'block';
         }
         
@@ -535,40 +591,43 @@
         }
         
         async function createLabel() {
-            const name = document.getElementById('labelName').value;
-            const color = document.getElementById('labelColor').value;
-            
-            if (!name) {
-                alert('Please enter a label name');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`${serverUrl}/api/labels`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        project_id: currentProjectId,
-                        label_name: name,
-                        label_color: color,
-                        label_category: 'default'
-                    })
-                });
-                
-                if (!response.ok) throw new Error('Failed to create label');
-                
-                const newLabel = await response.json();
-                labels.push(newLabel);
-                renderLabelList();
-                closePopup();
-            } catch (error) {
-                console.error('Error creating label:', error);
-                alert('Failed to create label');
-            }
-        }
-        
+  const name = document.getElementById('labelName').value.trim();
+  const color = document.getElementById('labelColor').value;
+  
+  if (!name) {
+    alert('Please enter a label name');
+    return;
+  }
+
+  try {
+    const response = await fetch(`${serverUrl}/api/labels`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        project_id: currentProjectId,
+        label_name: name,
+        label_color: color,
+        label_category: 'object' // or your default category
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) throw new Error(data.error || 'Failed to create label');
+    
+    labels.push(data);
+    renderLabelList();
+    closePopup();
+    
+  } catch (error) {
+    console.error('Error:', error);
+    alert(`Error creating label: ${error.message}`);
+  }
+}
+
         // Edit label popup
         function showEditPopup(labelId) {
             const label = labels.find(l => l.label_id === labelId);
@@ -585,7 +644,7 @@
         }
         
         async function updateLabel() {
-            const name = document.getElementById('editLabelName').value;
+            const name = document.getElementById('editLabelName').value.trim();
             const color = document.getElementById('editLabelColor').value;
             
             if (!name) {
@@ -594,10 +653,18 @@
             }
             
             try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    alert('Please login first');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                
                 const response = await fetch(`${serverUrl}/api/labels/${currentLabelId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         label_name: name,
@@ -605,7 +672,10 @@
                     })
                 });
                 
-                if (!response.ok) throw new Error('Failed to update label');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to update label');
+                }
                 
                 const updatedLabel = await response.json();
                 const index = labels.findIndex(l => l.label_id === currentLabelId);
@@ -616,7 +686,7 @@
                 closeEditPopup();
             } catch (error) {
                 console.error('Error updating label:', error);
-                alert('Failed to update label');
+                alert(error.message || 'Failed to update label');
             }
         }
         </script>

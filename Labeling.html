@@ -35,24 +35,22 @@
             color: white;
         }
         .main-content {
-    display: flex;
-    padding: 20px;
-    flex-direction: column; /* Prevent space for removed right panel */
-}
+            display: flex;
+            padding: 20px;
+            flex-direction: column;
+        }
         .left-panel {
             flex: 1;
         }
         .search-container {
             display: flex;
-            flex-direction: column; /* Adjust this to stack label and input vertically */
+            flex-direction: column;
             align-items: flex-start;
             margin-bottom: 10px;
         }
-
         .search-container label {
-            margin-bottom: 10px; /* Adds space between the label and the input */
+            margin-bottom: 10px;
         }
-
         .search-container input {
             padding: 5px;
             border-radius: 5px;
@@ -72,7 +70,6 @@
         .upload-btn input {
             display: none;
         }
-       
         .label-buttons {
             display: flex;
             gap: 10px;
@@ -90,8 +87,6 @@
         .label-buttons button.active {
             background: #007bff;
         }
-        
-
         .image-preview {
             margin-top: 15px;
             display: flex;
@@ -132,470 +127,599 @@
         .delete-btn:hover {
             background: darkred;
         }
-        
         .start-labeling-btn {
-    background: #28a745; /* Green color */
-    padding: 8px 15px;
-    border-radius: 5px;
-    border: none;
-    cursor: pointer;
-    font-weight: bold;
-    color: white;
-    margin-right: 10px;
-}
-
-.start-labeling-btn:hover {
-    background: #218838; /* Darker green on hover */
-}
-
-
-        /* Left Sidebar Styles */
-    .left-sidebar {
-        width: 250px;
-        background-color: #333;
-        color: white;
-        position: fixed;
-        height: 100%;
-        padding-top: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
-    }
-
-    .left-sidebar a {
-        padding: 15px;
-        text-decoration: none;
-        color: white;
-        display: block;
-        font-size: 16px;
-        transition: background 0.3s;
-    }
-
-    .left-sidebar a:hover {
-        background-color: #555;
-    }
-
-    .left-sidebar a.active {
-        background-color: #007bff;
-        font-weight: bold;
-    }
-
-    .main-content {
-        margin-left: 270px; /* Space for sidebar */
-        padding: 20px;
-    }
-
-    .right-panel {
-    position: fixed; /* Make it fixed to the right */
-    top: 0;
-    right: 0;
-    width: 250px;
-    background: #ccc;
-    padding: 10px;
-    color: black;
-    border-left: 1px solid #444;
-    height: 100%; /* Ensure it takes up the full height */
-}
-h3 {
-    font-size: 18px;
-    font-weight: bold;
-    margin-top: 10px;
-}
-.instruction-box {
-    width: 100%;
-    height: 80px;
-    resize: none;
-}
-.edit-tags, .see-more {
-    color: blue;
-    text-decoration: underline;
-    cursor: pointer;
-}
-.progress-bar-container {
-    width: 100%;
-    height: 10px;
-    background: white;
-    border: 1px solid black;
-    border-radius: 5px;
-    overflow: hidden;
-}
-.progress-bar {
-    width: 0%;
-    height: 100%;
-    background: blue;
-    transition: width 0.3s;
-}
+            background: #28a745;
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            margin-right: 10px;
+        }
+        .start-labeling-btn:hover {
+            background: #218838;
+        }
+        .more-options {
+            position: relative;
+        }
+        .options-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #444;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            width: 200px;
+        }
+        .options-menu a {
+            display: block;
+            padding: 10px;
+            color: white;
+            text-decoration: none;
+        }
+        .options-menu a:hover {
+            background: #666;
+        }
+        .left-sidebar {
+            width: 250px;
+            background-color: #333;
+            color: white;
+            position: fixed;
+            height: 100%;
+            padding-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+        }
+        .left-sidebar a {
+            padding: 15px;
+            text-decoration: none;
+            color: white;
+            display: block;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        .left-sidebar a:hover {
+            background-color: #555;
+        }
+        .left-sidebar a.active {
+            background-color: #007bff;
+            font-weight: bold;
+        }
+        .main-content {
+            margin-left: 270px;
+            padding: 20px;
+        }
+        .right-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 250px;
+            background: #ccc;
+            padding: 10px;
+            color: black;
+            border-left: 1px solid #444;
+            height: 100%;
+        }
+        h3 {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .instruction-box {
+            width: 100%;
+            height: 80px;
+            resize: none;
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 10px;
+            background: white;
+            border: 1px solid black;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: blue;
+            transition: width 0.3s;
+        }
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .back-btn:hover {
+            background: #5a6268;
+        }
+        .error-message {
+            color: red;
+            margin: 10px 0;
+        }
     </style>
-        <button id="backButton" class="back-btn">⬅ Back</button>
 </head>
 <body>
-
+    <button id="backButton" class="back-btn">⬅ Back</button>
     <div class="header">
-        <div class="project-name" id="projectName">Caries</div>
+        <div class="project-name" id="projectName">Loading...</div>
     </div>
 
-    <!-- ✅ Left Sidebar (Correct Placement) -->
     <div class="left-sidebar">
-        <a href="#" id="menu-upload" class="active">📤 Upload Images</a>
+        <a href="#" id="menu-upload">📤 Upload Images</a>
         <a href="#" id="menu-labeling">🏷️ Labeling</a>
         <a href="#" id="menu-dataset">📂 Dataset</a>
         <a href="#" id="menu-classes">🔖 Class & Tags</a>
-        <a href="#" id="menu-analytics">📊 Analytic</a>
+        <div class="more-options">
+            <a href="#" id="menu-more">⋮ More Options</a>
+            <div class="options-menu" id="optionsMenu">
+                <a href="#">📋 Copy Project</a>
+                <a href="#">📂 Duplicate Project</a>
+                <a href="#">🔗 Merge Project</a>
+                <a href="#">✏️ Rename Project</a>
+                <a href="#">🔒 Make Private</a>
+                <a href="#" id="deleteProject">🗑 Delete Project</a>
+                <a href="#" id="logout">Logout</a>
+            </div>
+        </div>
     </div>
-
+    
     <div class="main-content">
         <div class="left-panel">
-            <!-- Labeling Title -->
-    <h2 id="labelingTitle" style="color: white; margin-bottom: 15px;">Labeling</h2>
-            <!-- Search Box -->
+            <h2 id="labelingTitle" style="color: white; margin-bottom: 15px;">Labeling</h2>
             <div class="search-container">
                 <label><strong>Search File</strong></label>
-                <input type="text" id="searchInput" placeholder="Search..." onkeyup="filterImages()">
+                <input type="text" id="searchInput" placeholder="Search...">
             </div>
 
-            <!-- Start Labeling Button -->
             <button class="start-labeling-btn" id="startLabelingBtn">Start Labeling</button>
+            <button id="sentToDataset" style="display: none;" class="start-labeling-btn">Sent to Dataset</button>
 
-            <!-- Sent to Dataset Button, initially hidden -->
-<button id="sentToDataset" style="display: none;" class="start-labeling-btn">Sent to Dataset</button>
-
-            <!-- Upload Images Button -->
             <label class="upload-btn">
                 Upload Images
-                <input type="file" multiple id="imageUpload">
+                <input type="file" multiple id="imageUpload" accept="image/*">
             </label>
-
-            
 
             <div class="label-buttons">
                 <button id="allLabeling">All</button>
-                <button id="notLabeling" class="active">Not Labeling</button>
-                <button id="alreadyLabeling">Already Labeling</button>
+                <button id="notLabeling" class="active">Not Labeled</button>
+                <button id="alreadyLabeling">Already Labeled</button>
             </div>
 
-            <div class="right-panel">
-                <h3><strong>Progress</strong></h3>
-                <div class="progress-bar-container">
-                    <div class="progress-bar"></div>
-                </div>
-                <p id="imageCount">0 Images</p>
-                <p id="labelCount">0 Label</p>
-                <p id="nonLabelCount">0 Non Label</p>
-                
-                <h3><strong>Instruction</strong></h3>
-                <textarea class="instruction-box" placeholder="Enter instructions here..."></textarea>
-                
-                <h3><strong>Creator</strong></h3>
-                <p>John Doe</p>
-                
-                <h3><strong>Search Tags</strong></h3>
-                <a href="#" class="edit-tags">Edit tags</a>
-                
-                <h3><strong>Timeline</strong></h3>
-                <a href="#" class="see-more">See more</a>
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            
+            <div class="image-preview" id="imagePreview"></div>
+        </div>
+
+        <div class="right-panel">
+            <h3><strong>Progress</strong></h3>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
             </div>
+            <p id="imageCount">0 Images</p>
+            <p id="labelCount">0 Labeled</p>
+            <p id="nonLabelCount">0 Non-Labeled</p>
+            
+            <h3><strong>Instruction</strong></h3>
+            <textarea class="instruction-box" id="instructionBox" placeholder="Enter instructions here..."></textarea>
+            
+            <h3><strong>Creator</strong></h3>
+            <p id="creatorName">Loading...</p>
+            
+            <h3><strong>Timeline</strong></h3>
+            <a href="#" class="see-more">See more</a>
+        </div>
+    </div>
 
     <script>
+    const serverUrl = "http://localhost:5000";
+    let currentProjectId = null;
+    let currentUserId = null;
 
-        document.getElementById("backButton").addEventListener("click", function() {
+    // DOM Elements
+    const elements = {
+        backButton: document.getElementById("backButton"),
+        projectName: document.getElementById("projectName"),
+        imageUpload: document.getElementById("imageUpload"),
+        imagePreview: document.getElementById("imagePreview"),
+        searchInput: document.getElementById("searchInput"),
+        allLabeling: document.getElementById("allLabeling"),
+        notLabeling: document.getElementById("notLabeling"),
+        alreadyLabeling: document.getElementById("alreadyLabeling"),
+        startLabelingBtn: document.getElementById("startLabelingBtn"),
+        sentToDataset: document.getElementById("sentToDataset"),
+        progressBar: document.getElementById("progressBar"),
+        imageCount: document.getElementById("imageCount"),
+        labelCount: document.getElementById("labelCount"),
+        nonLabelCount: document.getElementById("nonLabelCount"),
+        instructionBox: document.getElementById("instructionBox"),
+        creatorName: document.getElementById("creatorName"),
+        errorMessage: document.getElementById("errorMessage"),
+        deleteProject: document.getElementById("deleteProject"),
+        logout: document.getElementById("logout"),
+        menuMore: document.getElementById("menu-more"),
+        optionsMenu: document.getElementById("optionsMenu")
+    };
+
+    // Get project ID from URL
+    function getProjectIdFromUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('id');
+    }
+
+    // Initialize the application
+    document.addEventListener("DOMContentLoaded", async function() {
+        currentProjectId = getProjectIdFromUrl();
+        
+        // Check authentication
+        const token = localStorage.getItem('token');
+        if (!token) {
+            showError("Please login first");
+            setTimeout(() => window.location.href = 'login.html', 2000);
+            return;
+        }
+
+        try {
+            // Decode token
+            const decoded = jwt_decode(token);
+            currentUserId = decoded.userId;
+            
+            if (currentProjectId) {
+                await loadProjectData(currentProjectId);
+                await loadImages(currentProjectId);
+            } else {
+                showError("No project ID specified");
+            }
+
+            // Setup event listeners
+            setupEventListeners();
+        } catch (error) {
+            console.error("Initialization error:", error);
+            showError("Session expired. Please login again.");
+            setTimeout(() => window.location.href = 'login.html', 2000);
+        }
+    });
+
+    function setupEventListeners() {
+        // Back button
+        elements.backButton.addEventListener("click", function() {
             window.location.href = "CreateProject.html";
         });
 
-        document.addEventListener("DOMContentLoaded", function () {
-            const params = new URLSearchParams(window.location.search);
-            const projectName = params.get("name") || "Untitled Project";
-
-        document.getElementById("projectName").innerText = projectName;
-            loadProjectData(projectName);
-        });
-
-
-        const projects = JSON.parse(localStorage.getItem("projects")) || [];
-        const project = projects.find(p => p.name === projectName);
-
-        if (project) {
-            document.getElementById("projectDetails").innerText = `Type: ${project.type}`;
-        }
-
-        function loadProjectData(projectName) {
-            let projectImages = JSON.parse(localStorage.getItem(`images_${projectName}`)) || [];
-            document.getElementById("imagePreview").innerHTML = "";
-            projectImages.forEach(displayImage);
-        }
-
-
-        // Enable editing project name on click
-        document.getElementById("projectName").addEventListener("click", function() {
-            let currentName = this.innerText;
-            let input = document.createElement("input");
-            input.type = "text";
-            input.value = currentName;
-            input.classList.add("project-name-input");
-
-            this.replaceWith(input);
-            input.focus();
-
-            // Save new name on enter key or clicking outside
-            function saveName() {
-                let newName = input.value.trim();
-                if (newName === "") newName = "Untitled Project"; // Default if empty
-                let newDiv = document.createElement("div");
-                newDiv.innerText = newName;
-                newDiv.classList.add("project-name");
-                newDiv.id = "projectName";
-                newDiv.addEventListener("click", arguments.callee);
-
-                input.replaceWith(newDiv);
+        // Menu navigation
+        document.getElementById("menu-upload").addEventListener("click", function() {
+            if (currentProjectId) {
+                window.location.href = `Upload.html?id=${currentProjectId}`;
+            } else {
+                showError("Project ID is missing");
             }
-
-            input.addEventListener("blur", saveName);  // Click outside
-            input.addEventListener("keypress", function(event) {
-                if (event.key === "Enter") saveName();  // Press Enter
-            });
         });
 
-        document.getElementById("imageUpload").addEventListener("change", function (event) {
-        const params = new URLSearchParams(window.location.search);
-        const projectName = params.get("name");
+        document.getElementById("menu-dataset").addEventListener("click", function() {
+            if (currentProjectId) {
+                window.location.href = `dataset.html?id=${currentProjectId}`;
+            } else {
+                showError("Project ID is missing");
+            }
+        });
 
-        if (!projectName) return;
+        // Image upload
+        elements.imageUpload.addEventListener("change", uploadImages);
 
-        let projectImages = JSON.parse(localStorage.getItem(`images_${projectName}`)) || [];
-        const files = event.target.files;
+        // Label filter buttons
+        elements.allLabeling.addEventListener("click", () => {
+            setActiveButton(elements.allLabeling);
+            filterImages();
+        });
+        elements.notLabeling.addEventListener("click", () => {
+            setActiveButton(elements.notLabeling);
+            filterImages();
+        });
+        elements.alreadyLabeling.addEventListener("click", () => {
+            setActiveButton(elements.alreadyLabeling);
+            filterImages();
+        });
 
-        for (let file of files) {
-            let reader = new FileReader();
-            reader.onload = function (e) {
-                projectImages.push({ name: file.name, src: e.target.result });
-                localStorage.setItem(`images_${projectName}`, JSON.stringify(projectImages));
-                loadProjectData(projectName);
-            };
-            reader.readAsDataURL(file);
-        }
-        setTimeout(loadImages, 100); // Ensure images load after IndexedDB update
-    });
+        // Search input
+        elements.searchInput.addEventListener("keyup", filterImages);
 
-        // Set "Not Labeling" as the default active button
-        document.getElementById("notLabeling").classList.add("active");
+        // Start labeling button
+        elements.startLabelingBtn.addEventListener("click", () => {
+            if (currentProjectId) {
+                window.location.href = `Labeling Detection.html?id=${currentProjectId}`;
+            } else {
+                showError("Project ID is missing");
+            }
+        });
 
-        // Toggle active class for labeling buttons
-        document.getElementById("allLabeling").addEventListener("click", function() {
-    this.classList.add("active");
-    document.getElementById("notLabeling").classList.remove("active");
-    document.getElementById("alreadyLabeling").classList.remove("active");
+        // More options menu
+        elements.menuMore.addEventListener("click", (e) => {
+            e.preventDefault();
+            elements.optionsMenu.style.display = elements.optionsMenu.style.display === 'block' ? 'none' : 'block';
+        });
 
-    // Hide "Sent to Dataset" and show "Start Labeling" when "All" is clicked
-    document.getElementById("sentToDataset").style.display = "none";
-    document.getElementById("startLabelingBtn").style.display = "inline-block";
-});
+        // Delete project
+        elements.deleteProject.addEventListener("click", async (e) => {
+            e.preventDefault();
+            if (confirm("Are you sure you want to delete this project? This cannot be undone.")) {
+                await deleteProject(currentProjectId);
+            }
+        });
 
-        document.getElementById("notLabeling").addEventListener("click", function() {
-    this.classList.add("active");
-    document.getElementById("alreadyLabeling").classList.remove("active");
-    document.getElementById("allLabeling").classList.remove("active");
-
-    // Hide "Sent to Dataset" and show "Start Labeling" when "Not Labeling" is clicked
-    document.getElementById("sentToDataset").style.display = "none";
-    document.getElementById("startLabelingBtn").style.display = "inline-block";
-});
-
-        document.getElementById("alreadyLabeling").addEventListener("click", function() {
-    this.classList.add("active");
-    document.getElementById("notLabeling").classList.remove("active");
-    document.getElementById("allLabeling").classList.remove("active");
-
-    // Show "Sent to Dataset" and hide "Start Labeling" when "Already Labeling" is clicked
-    document.getElementById("sentToDataset").style.display = "inline-block";
-    document.getElementById("startLabelingBtn").style.display = "none";
-});
-
-        
-
-        let db;
-
-// Open IndexedDB Database
-function openDatabase() {
-    let request = indexedDB.open("ImageDatabase", 1);
-
-    request.onupgradeneeded = function(event) {
-        let db = event.target.result;
-        if (!db.objectStoreNames.contains("images")) {
-            db.createObjectStore("images", { keyPath: "id", autoIncrement: true });
-        }
-    };
-
-    request.onsuccess = function(event) {
-        db = event.target.result;
-        loadImages(); // Load stored images on page load
-    };
-
-    request.onerror = function(event) {
-        console.log("Database error:", event.target.errorCode);
-    };
-}
-
-// Add Image to IndexedDB
-function addImage(file) {
-    const params = new URLSearchParams(window.location.search);
-    const projectName = params.get("name");
-    
-    if (!projectName) return; // Ensure projectName is available
-
-    let reader = new FileReader();
-    reader.onload = function(e) {
-        let transaction = db.transaction(["images"], "readwrite");
-        let store = transaction.objectStore("images");
-
-        let image = {
-            id: Date.now(), // Unique ID
-            name: file.name,
-            src: e.target.result,
-            project: projectName  // Store project name
-        };
-
-        store.add(image);
-        transaction.oncomplete = function() {
-            displayImage(image);
-        };
-    };
-    reader.readAsDataURL(file);
-}
-
-
-// Load Images from IndexedDB
-function loadImages() {
-    const params = new URLSearchParams(window.location.search);
-    const projectName = params.get("name");
-
-    let transaction = db.transaction(["images"], "readonly");
-    let store = transaction.objectStore("images");
-    let request = store.getAll();
-
-    request.onsuccess = function(event) {
-        let images = event.target.result;
-        const imagePreview = document.getElementById("imagePreview");
-
-        // Clear previous images before adding new ones
-        imagePreview.innerHTML = "";
-
-        // Filter images based on project name
-        images.filter(image => image.project === projectName).forEach(displayImage);
-    };
-}
-
-
-
-// Display Image in UI
-    function displayImage(image) {
-        const imagePreview = document.getElementById("imagePreview");
-        const imageContainer = document.createElement("div");
-        imageContainer.classList.add("image-container");
-        imageContainer.dataset.id = image.id; // Ensure ID is set
-
-        const deleteBtn = document.createElement("button");
-        deleteBtn.innerText = "X";
-        deleteBtn.classList.add("delete-btn");
-
-        deleteBtn.onclick = function () {
-            deleteImage(image.id); // Delete from IndexedDB
-            imageContainer.remove(); // Remove from UI
-            updateImageCount(); // Update count after deletion
-        };
-
-        const img = document.createElement("img");
-        img.src = image.src;
-
-        imageContainer.appendChild(deleteBtn);
-        imageContainer.appendChild(img);
-        imagePreview.appendChild(imageContainer);
-
-        updateImageCount(); // Update count after adding
+        // Logout
+        elements.logout.addEventListener("click", (e) => {
+            e.preventDefault();
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        });
     }
 
-
-    // Delete Image from IndexedDB
-    function deleteImage(id) {
-        let transaction = db.transaction(["images"], "readwrite");
-        let store = transaction.objectStore("images");
-        store.delete(id);
-
-        transaction.oncomplete = function () {
-            console.log("Image deleted:", id);
-        };
+    function setActiveButton(button) {
+        document.querySelectorAll(".label-buttons button").forEach(btn => {
+            btn.classList.remove("active");
+        });
+        button.classList.add("active");
     }
-    
-function filterImages() {
-    const searchValue = document.getElementById("searchInput").value.toLowerCase();
-    document.querySelectorAll(".image-container").forEach(img => {
-        img.style.display = img.querySelector("img").alt.toLowerCase().includes(searchValue) ? "block" : "none";
-    });
-}
 
-
-    // Handle File Upload
-    document.getElementById("imageUpload").addEventListener("change", function(event) {
-        const files = event.target.files;
-        for (let file of files) {
-            addImage(file);
-        }
-    });
-
-    
-
-    // Open Database on Page Load
-    document.addEventListener("DOMContentLoaded", openDatabase);
-        function filterImages() {
-            let searchValue = document.getElementById("searchInput").value.toLowerCase();
-            document.querySelectorAll(".image-container").forEach(img => {
-                img.style.display = img.querySelector("img").alt.toLowerCase().includes(searchValue) ? "block" : "none";
+    async function loadProjectData(projectId) {
+        try {
+            const response = await fetch(`${serverUrl}/api/projects/${projectId}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
             });
-        }
-
-        function updateImageCount() {
-            const imageCount = document.querySelectorAll(".image-container").length;
-            const labelCount = document.querySelectorAll(".image-container[data-labeled='true']").length;
-            const nonLabelCount = imageCount - labelCount;
-
-            document.getElementById("imageCount").textContent = `${imageCount} Images`;
-            document.getElementById("labelCount").textContent = `${labelCount} Labeled`;
-            document.getElementById("nonLabelCount").textContent = `${nonLabelCount} Non-Labeled`;
-
             
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const project = await response.json();
+            elements.projectName.textContent = project.project_name;
+            
+            // Load creator info
+            if (project.user_id) {
+                try {
+                    const userResponse = await fetch(`${serverUrl}/api/user/${project.user_id}`, {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+                    if (userResponse.ok) {
+                        const user = await userResponse.json();
+                        elements.creatorName.textContent = user.name;
+                    }
+                } catch (userError) {
+                    console.error("Couldn't load user info:", userError);
+                    elements.creatorName.textContent = "Unknown";
+                }
+            }
+            
+            return project;
+        } catch (error) {
+            console.error("Error loading project:", error);
+            showError("Failed to load project data");
+            throw error;
         }
+    }
 
-        function updateProgressBar() {
-    const imageCount = document.querySelectorAll(".image-container").length;
-    const labelCount = document.querySelectorAll(".image-container[data-labeled='true']").length;
-    const nonLabelCount = imageCount - labelCount;
+    async function loadImages(projectId) {
+        try {
+            const response = await fetch(`${serverUrl}/api/images/${projectId}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to load images: ${response.status}`);
+            }
+            
+            const images = await response.json();
+            elements.imagePreview.innerHTML = "";
+            
+            if (images.length === 0) {
+                elements.imagePreview.innerHTML = "<p>No images found for this project</p>";
+                return;
+            }
+            
+            images.forEach((image) => {
+                const imageContainer = document.createElement("div");
+                imageContainer.className = "image-container";
+                imageContainer.dataset.id = image.image_id;
+                imageContainer.dataset.labeled = image.labeled_status ? "true" : "false";
+                
+                const img = document.createElement("img");
+                img.src = `${serverUrl}${image.file_path}`;
+                img.alt = image.image_name;
+                
+                const deleteBtn = document.createElement("button");
+                deleteBtn.className = "delete-btn";
+                deleteBtn.textContent = "X";
+                deleteBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    deleteImage(image.image_id);
+                });
+                
+                imageContainer.appendChild(deleteBtn);
+                imageContainer.appendChild(img);
+                
+                // Add click handler to view image
+                imageContainer.addEventListener("click", () => {
+                    viewImage(image.image_id);
+                });
+                
+                elements.imagePreview.appendChild(imageContainer);
+            });
+            
+            updateProgressBar();
+            return images;
+        } catch (error) {
+            console.error("Error loading images:", error);
+            showError("Failed to load images");
+            throw error;
+        }
+    }
 
-    // Update the text content
-    document.getElementById("imageCount").textContent = `${imageCount} Images`;
-    document.getElementById("labelCount").textContent = `${labelCount} Labeled`;
-    document.getElementById("nonLabelCount").textContent = `${nonLabelCount} Non-Labeled`;
+    function viewImage(imageId) {
+        window.location.href = `image.html?id=${imageId}&projectId=${currentProjectId}`;
+    }
 
-    // Update the progress bar
-    const progressBar = document.querySelector(".progress-bar");
-    if (progressBar) {
-        let progress = imageCount ? Math.min(100, (labelCount / imageCount) * 100) : 0;
-        progressBar.style.width = `${progress}%`;
+    async function uploadImages(event) {
+        const files = event.target.files;
+        if (!files.length) return;
+        
+        showError(""); // Clear previous errors
+        
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append("images", files[i]);
+        }
+        
+        try {
+            const response = await fetch(`${serverUrl}/api/images/upload/${currentProjectId}`, {
+                method: "POST",
+                body: formData,
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Upload failed");
+            }
+            
+            const result = await response.json();
+            console.log("Upload successful:", result);
+            await loadImages(currentProjectId);
+        } catch (error) {
+            console.error("Upload error:", error);
+            showError(error.message || "Failed to upload images");
+        } finally {
+            event.target.value = ""; // Clear the file input
+        }
+    }
+
+    async function deleteImage(imageId) {
+        if (!confirm("Are you sure you want to delete this image?")) return;
+        
+        try {
+            const response = await fetch(`${serverUrl}/api/images/${imageId}`, {
+                method: "DELETE",
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            // Remove from UI
+            document.querySelector(`.image-container[data-id="${imageId}"]`)?.remove();
+            updateProgressBar();
+        } catch (error) {
+            console.error("Error deleting image:", error);
+            showError("Failed to delete image");
+        }
+    }
+
+    async function deleteProject(projectId) {
+        try {
+            const response = await fetch(`${serverUrl}/api/projects/${projectId}`, {
+                method: "DELETE",
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            window.location.href = "projects.html";
+        } catch (error) {
+            console.error("Error deleting project:", error);
+            showError("Failed to delete project");
+        }
+    }
+
+    function filterImages() {
+        const searchValue = elements.searchInput.value.toLowerCase();
+        const activeFilter = document.querySelector(".label-buttons button.active").id;
+        
+        document.querySelectorAll(".image-container").forEach(container => {
+            const imageName = container.querySelector("img").alt.toLowerCase();
+            const isLabeled = container.dataset.labeled === "true";
+            
+            const matchesSearch = imageName.includes(searchValue);
+            const matchesFilter = 
+                activeFilter === "allLabeling" || 
+                (activeFilter === "notLabeling" && !isLabeled) ||
+                (activeFilter === "alreadyLabeling" && isLabeled);
+            
+            container.style.display = matchesSearch && matchesFilter ? "block" : "none";
+        });
+    }
+
+    function updateProgressBar() {
+        const containers = document.querySelectorAll(".image-container");
+        const labeledCount = document.querySelectorAll(".image-container[data-labeled='true']").length;
+        const totalCount = containers.length;
+        
+        elements.imageCount.textContent = `${totalCount} Images`;
+        elements.labelCount.textContent = `${labeledCount} Labeled`;
+        elements.nonLabelCount.textContent = `${totalCount - labeledCount} Non-Labeled`;
+        
+        const progress = totalCount > 0 ? Math.round((labeledCount / totalCount) * 100) : 0;
+        elements.progressBar.style.width = `${progress}%`;
+        
+        // Show/hide labeling buttons based on progress
+        if (labeledCount > 0) {
+            elements.sentToDataset.style.display = "inline-block";
+        } else {
+            elements.sentToDataset.style.display = "none";
+        }
+    }
+
+    function showError(message) {
+        if (message) {
+            elements.errorMessage.textContent = message;
+            elements.errorMessage.style.display = "block";
+        } else {
+            elements.errorMessage.style.display = "none";
+        }
+    }
+
+    // JWT decode function
+    function jwt_decode(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+            atob(base64)
+            .split('')
+            .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.error("Error decoding token:", e);
+        // Handle invalid token - redirect to login
+        localStorage.removeItem('token');
+        window.location.href = 'login.html';
+        return {};
     }
 }
 
-    document.querySelector(".start-labeling-btn").addEventListener("click", function() {
-    // Your labeling logic here
-    alert("Labeling has started!");
-    window.location.href = "Labeling Detection.html";
-    });
-
-    document.querySelectorAll(".left-sidebar a").forEach(link => {
-        link.addEventListener("click", function() {
-            document.querySelectorAll(".left-sidebar a").forEach(item => item.classList.remove("active"));
-            this.classList.add("active");
-        });
-    });
-    
-    </script>
-
+</script>
 </body>
 </html>
