@@ -591,40 +591,42 @@
         }
         
         async function createLabel() {
-            const name = document.getElementById('labelName').value.trim();
-            const color = document.getElementById('labelColor').value;
-            
-            if (!name) {
-                alert('Please enter a label name');
-                return;
-            }
+  const name = document.getElementById('labelName').value.trim();
+  const color = document.getElementById('labelColor').value;
+  
+  if (!name) {
+    alert('Please enter a label name');
+    return;
+  }
 
-            try {
-                const response = await fetch(`${config.serverUrl}/api/labels`, {
-                    method: 'POST',
-                    headers: config.headers,
-                    body: JSON.stringify({
-                        project_id: state.currentProjectId,
-                        label_name: name,
-                        label_color: color,
-                        label_category: 'object'
-                    })
-                });
+  try {
+    const response = await fetch(`${serverUrl}/api/labels`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        project_id: currentProjectId,
+        label_name: name,
+        label_color: color,
+        label_category: 'object' // or your default category
+      })
+    });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to create label');
-                }
-                
-                const newLabel = await response.json();
-                state.labels.push(newLabel);
-                renderLabelList();
-                closePopup();
-            } catch (error) {
-                console.error('Error creating label:', error);
-                alert(error.message || 'Failed to create label');
-            }
-        }
+    const data = await response.json();
+    
+    if (!response.ok) throw new Error(data.error || 'Failed to create label');
+    
+    labels.push(data);
+    renderLabelList();
+    closePopup();
+    
+  } catch (error) {
+    console.error('Error:', error);
+    alert(`Error creating label: ${error.message}`);
+  }
+}
 
         // Edit label popup
         function showEditPopup(labelId) {
