@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Labeling System</title>
+    <link rel="stylesheet" href="detection.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar" id="imageList"></div>
+        <div class="main-content">
+            <div class="navbar">
+                <button id="backButton" class="back-btn">⬅ Back</button>
+                <button onclick="showPopup()">Create Label</button>
+            </div>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden>
+            <canvas id="imageCanvas"></canvas>
+        </div>
+        <!-- Sidebar for labels -->
+<div class="right-sidebar">
+    <div id="labels-container">
+        <h3>Labels</h3>
+        <div id="labelList"></div>
+        <h3>-------------------</h3>
+        <div id="drawnLabels"></div>
+    </div>
+  </div>
+        </div>
+    </div>
+        
+    <div class="left-sidebar">
+        <div class="menu-item">
+            <span class="icon">🖼️</span>
+            <span>All Images</span>
+        </div>
+        <div class="menu-item active">
+            <span class="icon">🔲</span>
+            <span>Labels</span>
+        </div>
+        <div class="menu-item">
+            <span class="icon">📋</span>
+            <span>Attributes</span>
+        </div>
+        <div class="menu-item">
+            <span class="icon">💬</span>
+            <span>Comments</span>
+        </div>
+        <div class="menu-item">
+            <span class="icon">🔄</span>
+            <span>History</span>
+        </div>
+        <div class="menu-item">
+            <span class="icon">🖥️</span>
+            <span>Raw Data</span>
+        </div>
+    </div>
+        </div>
+    </div>
+    <div class="popup" id="labelPopup">
+        <h3>Create Label</h3>
+        <input type="text" id="labelName" placeholder="Name The Label">
+        <input type="color" id="labelColor" value="#00ff00">
+        <button onclick="createLabel()">Create</button>
+        <button onclick="closePopup()">Cancel</button>
+    </div>
+    <div class="popup" id="editLabelPopup">
+        <h3>Edit Label</h3>
+        <input type="text" id="editLabelName" placeholder="Label Name">
+        <input type="color" id="editLabelColor">
+        <button onclick="updateLabel()">Update</button>
+        <button onclick="closeEditPopup()">Cancel</button>
+    </div>
+
+        <script src="detection.js"> </script>
+</body>
+</html>

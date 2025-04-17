@@ -17,20 +17,22 @@ const port = 5000;
 const allowedOrigins = ['http://localhost:3000', 'http://localhost:5000'];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins for debugging
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(express.static("public"));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+const uploadsPath = path.join(__dirname, "uploads");
+app.use("/uploads", express.static(uploadsPath, {
+  setHeaders: (res, path) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Cache-Control", "public, max-age=31536000");
+  }
+}));
 
 // MySQL Connection Pool
 const pool = mysql.createPool({
@@ -88,6 +90,22 @@ const upload = multer({
       cb(new Error("Invalid file type. Only JPEG, PNG, and GIF are allowed."));
     }
   }
+});
+
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
+// Enhanced error handler
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({ 
+    success: false,
+    message: process.env.NODE_ENV === 'development' 
+      ? err.message 
+      : 'Internal server error'
+  });
 });
 
 // Auth Routes
@@ -285,25 +303,24 @@ app.get("/api/images/:projectId", async (req, res) => {
   }
 });
 
-app.post("/api/images/upload/:projectId", upload.array("images", 10), async (req, res) => {
+app.post('/api/images/upload/:projectId', authenticateToken, upload.array('images'), async (req, res) => {
   const projectId = req.params.projectId;
-  
+  const userId = req.user?.userId;
+
+  console.log("=== UPLOAD REQUEST STARTED ===");
+  console.log("Project ID:", req.params.projectId);
+  console.log("User ID:", req.user.userId);
+  console.log("Files received:", req.files ? req.files.map(f => f.originalname) : 'No files');
+
+  if (!userId) {
+    return res.status(401).json({ success: false, message: "User not authenticated" });
+  }
+
+  console.log(`User ${userId} is uploading to project ${projectId}`);
+  console.log("Files received:", req.files);
+
   if (!req.files || req.files.length === 0) {
-    return res.status(400).json({ message: "No images uploaded" });
-  }
-
-  // Get user ID from JWT token
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ message: "Authentication required" });
-  }
-
-  let userId;
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    userId = decoded.userId;
-  } catch (error) {
-    return res.status(401).json({ message: "Invalid token" });
+    return res.status(400).json({ success: false, message: "No files uploaded" });
   }
 
   let connection;
@@ -311,63 +328,66 @@ app.post("/api/images/upload/:projectId", upload.array("images", 10), async (req
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    const uploadResults = [];
-    
-    for (const file of req.files) {
-      try {
-        // Insert into Image table with user_id
-        const [imageResult] = await connection.query(
-          "INSERT INTO Image (user_id, image_name, file_path, labeled_status) VALUES (?, ?, ?, ?)",
-          [userId, file.originalname, `/uploads/${file.filename}`, 0]
-        );
-        
-        // Insert into ProjectImage table
-        await connection.query(
-          "INSERT INTO ProjectImage (project_id, image_id) VALUES (?, ?)",
-          [projectId, imageResult.insertId]
-        );
+    const uploaded = [];
 
-        uploadResults.push({
-          id: imageResult.insertId,
-          name: file.originalname,
-          path: `/uploads/${file.filename}`
-        });
-      } catch (err) {
-        // Clean up uploaded file if DB operation fails
-        fs.unlinkSync(path.join(__dirname, "uploads", file.filename));
-        throw err;
-      }
+    for (const file of req.files) {
+      const [imageResult] = await connection.query(
+        `INSERT INTO Image (user_id, image_name, file_path, labeled_status)
+         VALUES (?, ?, ?, 0)`,
+        [userId, file.filename, `/uploads/${file.filename}`]
+      );
+  
+      await connection.query(
+        `INSERT INTO ProjectImage (project_id, image_id)
+         VALUES (?, ?)`,
+        [projectId, imageResult.insertId]
+      );
+  
+      uploaded.push({
+        image_id: imageResult.insertId,
+        file: file.filename,  // Changed to file.filename
+      });
     }
 
     await connection.commit();
-    res.json({ 
-      message: "Images uploaded successfully",
-      count: req.files.length,
-      uploads: uploadResults
-    });
+    return res.json({ success: true, count: uploaded.length, uploads: uploaded });
+
   } catch (error) {
     if (connection) await connection.rollback();
-    
-    console.error("Error uploading images:", error);
-    res.status(500).json({ 
-      message: "Internal server error",
-      error: error.code === 'ER_NO_DEFAULT_FOR_FIELD' 
-        ? "Missing required field: user_id" 
-        : error.message
-    });
+    console.error("Upload error:", error);
+    return res.status(500).json({ success: false, message: "Upload failed", error: error.message });
   } finally {
     if (connection) connection.release();
   }
 });
 
-app.delete("/images/:imageId", async (req, res) => {
-  const imageId = req.params.imageId;
-  try {
-    const [image] = await pool.query("SELECT image_name FROM Image WHERE image_id = ?", [imageId]);
-    if (image.length === 0) return res.status(404).json({ message: "Image not found" });
 
+app.delete("/images/:imageId", authenticateToken, async (req, res) => {
+  const imageId = req.params.imageId;
+  const userId = req.user.userId;
+
+  try {
+    // Check if the image belongs to the user
+    const [image] = await pool.query(
+      `SELECT i.image_name FROM Image i
+       JOIN ProjectImage pi ON i.image_id = pi.image_id
+       JOIN Project p ON pi.project_id = p.project_id
+       WHERE i.image_id = ? AND p.user_id = ?`,
+      [imageId, userId]
+    );
+
+    if (image.length === 0) {
+      return res.status(403).json({ message: "Not authorized to delete this image" });
+    }
+
+    // Delete from DB
     await pool.query("DELETE FROM Image WHERE image_id = ?", [imageId]);
-    fs.unlinkSync(path.join(__dirname, "uploads", image[0].image_name));
+
+    // Delete file - using the stored filename
+    const filePath = path.join(__dirname, "uploads", image[0].image_name);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
 
     res.json({ message: "Image deleted successfully" });
   } catch (error) {
@@ -421,49 +441,108 @@ app.get("/api/projects/:id/images", authenticateToken, async (req, res) => {
 });
 
 // Get single image
-app.get("/api/images/:id", authenticateToken, async (req, res) => {
+app.get('/api/images/:id', authenticateToken, async (req, res) => {
+  const imageId = req.params.id;
+
   try {
-      const [images] = await pool.query(
-          "SELECT * FROM Image WHERE image_id = ?",
-          [req.params.id]
-      );
-      if (images.length === 0) {
-          return res.status(404).json({ error: "Image not found" });
-      }
-      res.json(images[0]);
-  } catch (error) {
-      res.status(500).json({ error: "Database error" });
+    const [rows] = await pool.query(
+      `SELECT i.image_id, i.image_name, 
+              COALESCE(i.file_path, CONCAT('/uploads/', i.image_name)) AS file_path 
+       FROM Image i
+       WHERE i.image_id = ?`, 
+      [imageId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Image not found' 
+      });
+    }
+
+    res.json(rows[0]); // Return the single image object, not an array
+  } catch (err) {
+    console.error("Error in GET /api/images/:id:", err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching image',
+      error: err.message 
+    });
   }
 });
 
 // Get image annotations
-app.get("/api/images/:id/annotations", authenticateToken, async (req, res) => {
+app.get("/api/images/:imageId/annotations", authenticateToken, async (req, res) => {
   try {
-      const [annotations] = await pool.query(
-          `SELECT * FROM Annotation WHERE image_id = ?`,
-          [req.params.id]
-      );
-      res.json(annotations);
+    const [annotations] = await pool.query(
+      `SELECT a.*, l.label_name, l.label_color 
+       FROM Annotation a
+       JOIN ImageLabel il ON a.imagelabel_id = il.imagelabel_id
+       JOIN Label l ON il.label_id = l.label_id
+       WHERE il.image_id = ?`,
+      [req.params.imageId]
+    );
+
+    res.json(annotations);
   } catch (error) {
-      res.status(500).json({ error: "Database error" });
+    console.error("❌ Error fetching annotations for image", req.params.imageId, ":", error.message);
+    res.status(500).json({ error: "Failed to fetch annotations", details: error.message });
   }
 });
+
 
 // Save annotation
 app.post("/api/annotations", authenticateToken, async (req, res) => {
   try {
-      const { image_id, label_id, x_min, x_max, y_min, y_max } = req.body;
+    const { image_id, label_id, x_min, x_max, y_min, y_max } = req.body;
+
+    // Validation
+    if (!image_id || !label_id || 
+        x_min === undefined || x_max === undefined ||
+        y_min === undefined || y_max === undefined) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // 1. Find or create ImageLabel relationship
+    const [rows] = await pool.query(
+      `SELECT imagelabel_id FROM ImageLabel 
+       WHERE image_id = ? AND label_id = ?`,
+      [image_id, label_id]
+    );
+
+    let imagelabel_id;
+    if (rows.length === 0) {
       const [result] = await pool.query(
-          `INSERT INTO Annotation 
-           (image_id, label_id, x_min, x_max, y_min, y_max)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [image_id, label_id, x_min, x_max, y_min, y_max]
+        `INSERT INTO ImageLabel (image_id, label_id) VALUES (?, ?)`,
+        [image_id, label_id]
       );
-      res.json({ annotation_id: result.insertId });
+      imagelabel_id = result.insertId;
+    } else {
+      imagelabel_id = rows[0].imagelabel_id;
+    }
+
+    // 2. Save the annotation
+    const [result] = await pool.query(
+      `INSERT INTO Annotation 
+       (imagelabel_id, x_min, x_max, y_min, y_max)
+       VALUES (?, ?, ?, ?, ?)`,
+      [imagelabel_id, x_min, x_max, y_min, y_max]
+    );
+
+    res.json({ 
+      success: true,
+      annotation_id: result.insertId
+    });
+
   } catch (error) {
-      res.status(500).json({ error: "Database error" });
+    console.error("Error saving annotation:", error);
+    res.status(500).json({ 
+      error: "Failed to save annotation",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
+
 
 // Label CRUD endpoints
 app.post("/api/labels", authenticateToken, async (req, res) => {
