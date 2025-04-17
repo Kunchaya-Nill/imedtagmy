@@ -14,7 +14,19 @@ const app = express();
 const port = 5000;
 
 // Middleware
-app.use(cors());
+const allowedOrigins = ['http://localhost:3000', 'http://localhost:5000'];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 app.use(express.static("public"));
@@ -237,6 +249,25 @@ app.delete("/projects/:id", async (req, res) => {
   }
 });
 
+// Get all images for a specific project
+app.get("/api/projects/:id/images", authenticateToken, async (req, res) => {
+  try {
+    const [images] = await pool.query(
+        `SELECT i.image_id, i.image_name 
+         FROM Image i
+         JOIN ProjectImage pi ON i.image_id = pi.image_id
+         WHERE pi.project_id = ?`,
+        [req.params.id]
+    );
+    res.json(images.map(img => ({
+        ...img,
+        file_path: `/uploads/${img.image_name}`
+    })));
+} catch (error) {
+    res.status(500).json({ error: "Database error" });
+}
+});
+
 // Image Routes
 app.get("/api/images/:projectId", async (req, res) => {
   try {
@@ -370,6 +401,101 @@ function handleDbError(res, error, action) {
   });
 }
 
+// Get project images
+app.get("/api/projects/:id/images", authenticateToken, async (req, res) => {
+  try {
+      const [images] = await pool.query(
+          `SELECT i.image_id, i.image_name 
+           FROM Image i
+           JOIN ProjectImage pi ON i.image_id = pi.image_id
+           WHERE pi.project_id = ?`,
+          [req.params.id]
+      );
+      res.json(images.map(img => ({
+          ...img,
+          file_path: `/uploads/${img.image_name}`
+      })));
+  } catch (error) {
+      res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Get single image
+app.get("/api/images/:id", authenticateToken, async (req, res) => {
+  try {
+      const [images] = await pool.query(
+          "SELECT * FROM Image WHERE image_id = ?",
+          [req.params.id]
+      );
+      if (images.length === 0) {
+          return res.status(404).json({ error: "Image not found" });
+      }
+      res.json(images[0]);
+  } catch (error) {
+      res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Get image annotations
+app.get("/api/images/:id/annotations", authenticateToken, async (req, res) => {
+  try {
+      const [annotations] = await pool.query(
+          `SELECT * FROM Annotation WHERE image_id = ?`,
+          [req.params.id]
+      );
+      res.json(annotations);
+  } catch (error) {
+      res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Save annotation
+app.post("/api/annotations", authenticateToken, async (req, res) => {
+  try {
+      const { image_id, label_id, x_min, x_max, y_min, y_max } = req.body;
+      const [result] = await pool.query(
+          `INSERT INTO Annotation 
+           (image_id, label_id, x_min, x_max, y_min, y_max)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [image_id, label_id, x_min, x_max, y_min, y_max]
+      );
+      res.json({ annotation_id: result.insertId });
+  } catch (error) {
+      res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Label CRUD endpoints
+app.post("/api/labels", authenticateToken, async (req, res) => {
+  try {
+      const { project_id, label_name, label_color, label_category } = req.body;
+      const [result] = await pool.query(
+          `INSERT INTO Label 
+           (project_id, label_name, label_color, label_category)
+           VALUES (?, ?, ?, ?)`,
+          [project_id, label_name, label_color, label_category || 'object']
+      );
+      res.json({ label_id: result.insertId });
+  } catch (error) {
+      res.status(500).json({ error: "Database error" });
+  }
+});
+
+app.put("/api/labels/:id", authenticateToken, async (req, res) => {
+  try {
+      const { label_name, label_color } = req.body;
+      await pool.query(
+          `UPDATE Label SET 
+           label_name = ?, label_color = ?
+           WHERE label_id = ?`,
+          [label_name, label_color, req.params.id]
+      );
+      res.json({ success: true });
+  } catch (error) {
+      res.status(500).json({ error: "Database error" });
+  }
+});
+
 // Labeling Routes
 app.get("/api/projects/:projectId/labels", authenticateToken, async (req, res) => {
   try {
@@ -392,45 +518,6 @@ app.get("/api/projects/:projectId/labels", authenticateToken, async (req, res) =
   } catch (error) {
     console.error("Error fetching labels:", error);
     res.status(500).json({ error: "Failed to fetch labels" });
-  }
-});
-
-app.post("/api/labels", authenticateToken, async (req, res) => {
-  const { project_id, label_name, label_color, label_category } = req.body;
-
-  if (!project_id || !label_name) {
-    return res.status(400).json({ 
-      error: "project_id and label_name are required" 
-    });
-  }
-
-  try {
-    const [result] = await pool.query(
-      `INSERT INTO Label 
-       (project_id, label_name, label_color, label_category) 
-       VALUES (?, ?, ?, ?)`,
-      [
-        project_id, 
-        label_name, 
-        label_color || '#00ff00',
-        label_category || 'default'
-      ]
-    );
-
-    res.json({
-      success: true,
-      label_id: result.insertId,
-      label_name,
-      label_color: label_color || '#00ff00',
-      label_category: label_category || 'default'
-    });
-  } catch (error) {
-    console.error("Database error:", error);
-    res.status(500).json({
-      error: "Failed to create label",
-      details: error.message,
-      sqlError: error.code
-    });
   }
 });
 
@@ -546,49 +633,6 @@ app.delete("/api/labels/:labelId", authenticateToken, async (req, res) => {
   }
 });
 
-app.post("/api/annotations", authenticateToken, async (req, res) => {
-  try {
-    const { image_id, label_id, x_min, x_max, y_min, y_max } = req.body;
-    
-    // Verify image and label belong to user
-    const [image] = await pool.query(
-      "SELECT * FROM Image WHERE image_id = ? AND user_id = ?",
-      [image_id, req.user.userId]
-    );
-    
-    if (image.length === 0) {
-      return res.status(404).json({ error: "Image not found" });
-    }
-
-    const [label] = await pool.query(
-      `SELECT * FROM Label l
-       JOIN Project p ON l.project_id = p.project_id
-       WHERE l.label_id = ? AND p.user_id = ?`,
-      [label_id, req.user.userId]
-    );
-    
-    if (label.length === 0) {
-      return res.status(404).json({ error: "Label not found" });
-    }
-
-    const [imageLabelResult] = await pool.query(
-      "INSERT INTO ImageLabel (image_id, label_id) VALUES (?, ?)",
-      [image_id, label_id]
-    );
-    
-    const [annotationResult] = await pool.query(
-      "INSERT INTO Annotation (imagelabel_id, x_min, x_max, y_min, y_max) VALUES (?, ?, ?, ?, ?)",
-      [imageLabelResult.insertId, x_min, x_max, y_min, y_max]
-    );
-    
-    res.status(201).json({ 
-      success: true,
-      annotationId: annotationResult.insertId
-    });
-  } catch (error) {
-    handleDbError(res, error, "saving annotation");
-  }
-});
 
 // Root route
 app.get("/", (req, res) => {
