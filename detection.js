@@ -70,7 +70,6 @@ function showErrorToUser(message) {
       const response = await fetch(`${serverUrl}/api/images/${projectId}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
-
   
       if (!response.ok) throw new Error('Failed to load images');
   
@@ -130,61 +129,80 @@ function createErrorElement() {
               imageList.appendChild(imgElement);
             });
           }
-
-          const fileExists = await checkFileExists(fullImageUrl);
-if (!fileExists) {
-    throw new Error(`Image file not found at: ${fullImageUrl}`);
-}
-
-// Helper function
-async function checkFileExists(url) {
-    try {
-        const response = await fetch(url, { method: 'HEAD' });
-        return response.ok;
-    } catch (e) {
-        return false;
-    }
-}
         
         // Load specific image
         async function loadImage(imageId) {
             try {
-                currentImageId = imageId;
-                const token = localStorage.getItem('token');
-        
-                // 1. Fetch image data
-                const imageResponse = await fetch(`${serverUrl}/api/images/${imageId}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+              currentImageId = imageId;
+              const token = localStorage.getItem('token');
+          
+              // 1. First fetch the image data
+              const imageResponse = await fetch(`${serverUrl}/api/images/${imageId}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
-                
-                if (!imageResponse.ok) {
-                    throw new Error(`HTTP error! status: ${imageResponse.status}`);
-                }
-        
                 const imageData = await imageResponse.json();
+
+// ✅ Add fallback if file_path is missing
+if (!imageData.file_path || imageData.file_path.trim() === "") {
+  if (imageData.image_name && imageData.image_name.trim() !== "") {
+    imageData.file_path = `/uploads/${imageData.image_name}`;
+  } else {
+    throw new Error("Image path not found in response (missing image_name)");
+  }
+}  
+
+        imageUrl = imageUrl.replace(/([^:]\/)\/+/g, '$1');
+          
+              // 2. Validate and construct the image URL
+              if (!imageData.file_path) {
+                throw new Error("Image path not found in response");
+              }
+          
+              let imageUrl = imageData.file_path;
+              
+              // Ensure path starts with /uploads
+              if (!imageUrl.startsWith('/uploads/')) {
+                imageUrl = `/uploads/${imageUrl}`;
+              }
+              
+              // Remove any double slashes
+              imageUrl = imageUrl.replace(/([^:]\/)\/+/g, '$1');
+              
+              // Create full URL
+              const fullImageUrl = new URL(imageUrl, serverUrl).href;
+              console.log("🖼️ Loading image from:", fullImageUrl);
+          
+              // 3. Load the image
+              const img = new Image();
+              img.crossOrigin = "Anonymous"; // Important for CORS
+              
+              img.onload = () => {
+                console.log("✅ Image loaded successfully");
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
                 
-                // Check if we got valid data
-                if (!imageData || Object.keys(imageData).length === 0) {
-                    throw new Error("Empty response from server");
-                }
-        
-                console.log("Image data received:", imageData);
-        
-                // Rest of your existing image loading logic...
-                // ... [keep the existing path handling and image loading code]
-                
-            } catch (error) {
-                console.error('🚨 Error loading image:', error);
-                showErrorToUser(`Error: ${error.message}`);
-                
-                // Optional: Show more details in console for debugging
-                console.log('Full error details:', {
-                    imageId,
-                    error,
-                    response: await imageResponse?.text()
+                // Load annotations after image loads
+                loadAnnotations(imageId);
+              };
+          
+              img.onerror = (e) => {
+                console.error("❌ Image failed to load", {
+                  src: img.src,
+                  error: e,
+                  imageData
                 });
+                showErrorToUser('Failed to load image. Please try again.');
+              };
+          
+              img.src = fullImageUrl;
+          
+            } catch (error) {
+              console.error('🚨 Error loading image:', error);
+              showErrorToUser(`Error loading image: ${error.message}`);
             }
-        }
+          }
 
         // Load labels for project
         async function loadLabels(projectId) {
