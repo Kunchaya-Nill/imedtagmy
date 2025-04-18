@@ -8,6 +8,7 @@ let isDrawing = false;
 let startX, startY;
 let rectangles = [];
 let selectedLabelId = null;
+let currentImageUrl = null;
 
 // Canvas setup
 const canvas = document.getElementById('imageCanvas');
@@ -18,7 +19,7 @@ const drawnLabels = document.getElementById('drawnLabels');
 
         // Back button functionality
         document.getElementById('backButton').addEventListener('click', () => {
-            window.location.href = `Labeling.html?id=${currentProjectId}`;
+            window.location.href = Labeling.html?id=${currentProjectId};
         });
         
         // Helper function to show errors to user
@@ -35,7 +36,7 @@ function showErrorToUser(message) {
   function createErrorElement() {
     const errorElement = document.createElement('div');
     errorElement.id = 'errorDisplay';
-    errorElement.style = `
+    errorElement.style = 
       position: fixed;
       top: 20px;
       right: 20px;
@@ -45,20 +46,20 @@ function showErrorToUser(message) {
       border-radius: 5px;
       z-index: 1000;
       display: none;
-    `;
+    ;
     document.body.appendChild(errorElement);
     return errorElement;
   }
   
   async function loadProject(projectId) {
     try {
-      const response = await fetch(`${serverUrl}/api/projects/${projectId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      const response = await fetch(${serverUrl}/api/projects/${projectId}, {
+        headers: { 'Authorization': Bearer ${localStorage.getItem('token')} }
       });
       if (!response.ok) throw new Error('Failed to load project');
   
       const project = await response.json();
-      document.title = `Labeling - ${project.project_name}`;
+      document.title = Labeling - ${project.project_name};
     } catch (error) {
       console.error('Error loading project:', error);
       throw error;
@@ -67,8 +68,8 @@ function showErrorToUser(message) {
   
   async function loadImages(projectId) {
     try {
-      const response = await fetch(`${serverUrl}/api/images/${projectId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      const response = await fetch(${serverUrl}/api/images/${projectId}, {
+        headers: { 'Authorization': Bearer ${localStorage.getItem('token')} }
       });
   
       if (!response.ok) throw new Error('Failed to load images');
@@ -84,24 +85,6 @@ function showErrorToUser(message) {
       throw error;
     }
   }
-
-function createErrorElement() {
-  const errorElement = document.createElement('div');
-  errorElement.id = 'errorDisplay';
-  errorElement.style = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 15px;
-    background: #ff4444;
-    color: white;
-    border-radius: 5px;
-    z-index: 1000;
-    display: none;
-  `;
-  document.body.appendChild(errorElement);
-  return errorElement;
-}
         
         // Render image thumbnails
         function renderImageList(images) {
@@ -112,7 +95,7 @@ function createErrorElement() {
               // Ensure proper URL formatting
               let imageUrl = image.file_path;
               if (!imageUrl.startsWith('/uploads/')) {
-                imageUrl = `/uploads/${imageUrl}`;
+                imageUrl = /uploads/${imageUrl};
               }
               imageUrl = imageUrl.replace(/([^:]\/)\/+/g, '$1');
               
@@ -132,77 +115,77 @@ function createErrorElement() {
         
         // Load specific image
         async function loadImage(imageId) {
-            try {
+          try {
               currentImageId = imageId;
               const token = localStorage.getItem('token');
-          
+      
               // 1. First fetch the image data
-              const imageResponse = await fetch(`${serverUrl}/api/images/${imageId}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                const imageData = await imageResponse.json();
-
-// ✅ Add fallback if file_path is missing
-if (!imageData.file_path || imageData.file_path.trim() === "") {
-  if (imageData.image_name && imageData.image_name.trim() !== "") {
-    imageData.file_path = `/uploads/${imageData.image_name}`;
-  } else {
-    throw new Error("Image path not found in response (missing image_name)");
-  }
-}  
-
-        imageUrl = imageUrl.replace(/([^:]\/)\/+/g, '$1');
-          
-              // 2. Validate and construct the image URL
-              if (!imageData.file_path) {
-                throw new Error("Image path not found in response");
-              }
-          
-              let imageUrl = imageData.file_path;
+              const imageResponse = await fetch(${serverUrl}/api/images/${imageId}, {
+                  headers: { 'Authorization': Bearer ${localStorage.getItem('token')} }
+              });
+              const imageData = await imageResponse.json();
               
+              // Check if we got an array and take the first item if so
+              const singleImageData = Array.isArray(imageData) ? imageData[0] : imageData;
+              console.log("📦 imageData from API:", singleImageData);
+      
+              // ✅ Add fallback if file_path is missing
+              if (!singleImageData.file_path || singleImageData.file_path.trim() === "") {
+                  if (singleImageData.image_name && singleImageData.image_name.trim() !== "") {
+                      singleImageData.file_path = /uploads/${singleImageData.image_name};
+                  } else {
+                      throw new Error("Image path not found in response (missing both file_path and image_name)");
+                  }
+              }
+      
+              // ✅ Define imageUrl BEFORE trying to use it
+              let imageUrl = singleImageData.file_path;
+      
               // Ensure path starts with /uploads
               if (!imageUrl.startsWith('/uploads/')) {
-                imageUrl = `/uploads/${imageUrl}`;
+                  imageUrl = /uploads/${imageUrl};
               }
-              
+      
               // Remove any double slashes
               imageUrl = imageUrl.replace(/([^:]\/)\/+/g, '$1');
-              
+      
               // Create full URL
               const fullImageUrl = new URL(imageUrl, serverUrl).href;
+              currentImageUrl = fullImageUrl;
+      
               console.log("🖼️ Loading image from:", fullImageUrl);
-          
+      
               // 3. Load the image
               const img = new Image();
               img.crossOrigin = "Anonymous"; // Important for CORS
               
               img.onload = () => {
-                console.log("✅ Image loaded successfully");
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
-                
-                // Load annotations after image loads
-                loadAnnotations(imageId);
+                  console.log("✅ Image loaded successfully");
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  ctx.drawImage(img, 0, 0);
+                  
+                  // Load annotations after image loads
+                  loadAnnotations(imageId);
               };
-          
+      
               img.onerror = (e) => {
-                console.error("❌ Image failed to load", {
-                  src: img.src,
-                  error: e,
-                  imageData
-                });
-                showErrorToUser('Failed to load image. Please try again.');
+                  console.error("❌ Image failed to load", {
+                      src: img.src,
+                      error: e,
+                      imageData: singleImageData
+                  });
+                  showErrorToUser('Failed to load image. Please try again.');
               };
-          
+      
               img.src = fullImageUrl;
-          
-            } catch (error) {
+      
+          } catch (error) {
               console.error('🚨 Error loading image:', error);
-              showErrorToUser(`Error loading image: ${error.message}`);
-            }
+              showErrorToUser(Error loading image: ${error.message});
           }
+      }
 
         // Load labels for project
         async function loadLabels(projectId) {
@@ -213,9 +196,9 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
       return;
     }
 
-    const response = await fetch(`${serverUrl}/api/projects/${projectId}/labels`, {
+    const response = await fetch(${serverUrl}/api/projects/${projectId}/labels, {
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': Bearer ${token}
       }
     });
                 if (!response.ok) throw new Error('Failed to load labels');
@@ -227,6 +210,41 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
                 throw error;
             }
         }
+
+        async function loadAnnotations(imageId) {
+          try {
+            rectangles = []; // Clear previous rectangles
+        
+            const response = await fetch(${serverUrl}/api/images/${imageId}/annotations, {
+              headers: {
+                'Authorization': Bearer ${localStorage.getItem('token')}
+              }
+            });
+        
+            if (!response.ok) {
+              throw new Error(Failed to fetch annotations for image ${imageId});
+            }
+        
+            const annotations = await response.json();
+        
+            // Map normalized coordinates to canvas size
+            rectangles = annotations.map(a => ({
+              x: a.x_min * canvas.width,
+              y: a.y_min * canvas.height,
+              width: (a.x_max - a.x_min) * canvas.width,
+              height: (a.y_max - a.y_min) * canvas.height,
+              labelId: a.label_id
+            }));
+        
+            console.log("📦 Loaded annotations:", rectangles);
+            redrawCanvas();
+        
+          } catch (error) {
+            console.error("⚠️ Error loading annotations:", error);
+            showErrorToUser(Failed to load annotations: ${error.message});
+          }
+        }
+        
 
                 // Initialize when page loads
                 document.addEventListener('DOMContentLoaded', async () => {
@@ -364,17 +382,17 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
         }
         
         function redrawCanvas() {
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Redraw image
-            const img = new Image();
-            img.onload = () => {
-                ctx.drawImage(img, 0, 0);
-                drawRectangles();
-            };
-            img.src = canvas.toDataURL();
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+          if (!currentImageUrl) return;
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0);
+            drawRectangles();
+          };
+          img.src = currentImageUrl;
         }
+        
         
         function drawRectangles() {
             rectangles.forEach(rect => {
@@ -414,11 +432,11 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
           
               console.log("Saving annotation:", annotation); // Debug log
           
-              const response = await fetch(`${serverUrl}/api/annotations`, {
+              const response = await fetch(${serverUrl}/api/annotations, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                  'Authorization': Bearer ${localStorage.getItem('token')}
                 },
                 body: JSON.stringify(annotation)
               });
@@ -426,7 +444,7 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
               if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 console.error("Annotation save failed:", errorData);
-                throw new Error(errorData.message || `Server error: ${response.status}`);
+                throw new Error(errorData.message || Server error: ${response.status});
               }
           
               const result = await response.json();
@@ -435,7 +453,7 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
           
             } catch (error) {
               console.error('Error saving annotation:', error);
-              showErrorToUser(`Failed to save annotation: ${error.message}`);
+              showErrorToUser(Failed to save annotation: ${error.message});
               
               // Remove the rectangle if save failed
               rectangles = rectangles.filter(r => r !== rect);
@@ -466,11 +484,11 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
   }
 
   try {
-    const response = await fetch(`${serverUrl}/api/labels`, {
+    const response = await fetch(${serverUrl}/api/labels, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': Bearer ${localStorage.getItem('token')}
       },
       body: JSON.stringify({
         project_id: currentProjectId,
@@ -490,7 +508,7 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
     
   } catch (error) {
     console.error('Error:', error);
-    alert(`Error creating label: ${error.message}`);
+    alert(Error creating label: ${error.message});
   }
 }
 
@@ -526,11 +544,11 @@ if (!imageData.file_path || imageData.file_path.trim() === "") {
                     return;
                 }
                 
-                const response = await fetch(`${serverUrl}/api/labels/${currentLabelId}`, {
+                const response = await fetch(${serverUrl}/api/labels/${currentLabelId}, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': Bearer ${token}
                     },
                     body: JSON.stringify({
                         label_name: name,
