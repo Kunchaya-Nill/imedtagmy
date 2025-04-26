@@ -161,6 +161,10 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+app.get('/api/verify-token', authenticateToken, (req, res) => {
+  res.json({ valid: true });
+});
+
 // Project Routes
 app.get("/api/projects", async (req, res) => {
   try {
@@ -265,25 +269,6 @@ app.delete("/projects/:id", async (req, res) => {
   } finally {
     if (connection) connection.release();
   }
-});
-
-// Get all images for a specific project
-app.get("/api/projects/:id/images", authenticateToken, async (req, res) => {
-  try {
-    const [images] = await pool.query(
-        `SELECT i.image_id, i.image_name 
-         FROM Image i
-         JOIN ProjectImage pi ON i.image_id = pi.image_id
-         WHERE pi.project_id = ?`,
-        [req.params.id]
-    );
-    res.json(images.map(img => ({
-        ...img,
-        file_path: `/uploads/${img.image_name}`
-    })));
-} catch (error) {
-    res.status(500).json({ error: "Database error" });
-}
 });
 
 // Image Routes
@@ -421,52 +406,75 @@ function handleDbError(res, error, action) {
   });
 }
 
-// Get project images
+// Get all images for a specific project
 app.get("/api/projects/:id/images", authenticateToken, async (req, res) => {
   try {
-      const [images] = await pool.query(
-          `SELECT i.image_id, i.image_name 
-           FROM Image i
-           JOIN ProjectImage pi ON i.image_id = pi.image_id
-           WHERE pi.project_id = ?`,
-          [req.params.id]
-      );
-      res.json(images.map(img => ({
-          ...img,
-          file_path: `/uploads/${img.image_name}`
-      })));
-  } catch (error) {
-      res.status(500).json({ error: "Database error" });
-  }
+    const [images] = await pool.query(
+        `SELECT i.image_id, i.image_name 
+         FROM Image i
+         JOIN ProjectImage pi ON i.image_id = pi.image_id
+         WHERE pi.project_id = ?`,
+        [req.params.id]
+    );
+    res.json(images.map(img => ({
+        ...img,
+        file_path: `/uploads/${img.image_name}`
+    })));
+} catch (error) {
+    res.status(500).json({ error: "Database error" });
+}
 });
 
 // Get single image
 app.get('/api/images/:id', authenticateToken, async (req, res) => {
-  const imageId = req.params.id;
-
   try {
-    const [rows] = await pool.query(
-      `SELECT i.image_id, i.image_name, 
-              COALESCE(i.file_path, CONCAT('/uploads/', i.image_name)) AS file_path 
-       FROM Image i
-       WHERE i.image_id = ?`, 
-      [imageId]
+    // Simple, direct query without joins
+    const [rows] = await pool.query(`
+      SELECT 
+        image_id,
+        image_name,
+        file_path,
+        labeled_status
+      FROM Image 
+      WHERE image_id = ?`, 
+      [req.params.id]
     );
 
     if (rows.length === 0) {
       return res.status(404).json({ 
-        success: false,
-        message: 'Image not found' 
+        error: 'IMAGE_NOT_FOUND',
+        message: 'Image record not found in database'
       });
     }
 
-    res.json(rows[0]); // Return the single image object, not an array
+    const imageData = rows[0];
+    
+    // Verify the physical file exists
+    const filePath = path.join(__dirname, imageData.file_path);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        error: 'FILE_NOT_FOUND',
+        message: 'Image file missing from server',
+        dbRecord: imageData
+      });
+    }
+
+    // Return standardized response
+    res.json({
+      success: true,
+      data: {
+        id: imageData.image_id,
+        name: imageData.image_name,
+        url: imageData.file_path, // Already includes /uploads/
+        status: imageData.labeled_status
+      }
+    });
+
   } catch (err) {
-    console.error("Error in GET /api/images/:id:", err);
+    console.error("Database error:", err);
     res.status(500).json({ 
-      success: false,
-      message: 'Error fetching image',
-      error: err.message 
+      error: 'DATABASE_ERROR',
+      message: 'Failed to query image data'
     });
   }
 });

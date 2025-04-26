@@ -33,6 +33,7 @@ function showErrorToUser(message) {
       errorElement.style.display = 'none';
     }, 5000);
   }
+
   
   function createErrorElement() {
     const errorElement = document.createElement('div');
@@ -66,6 +67,67 @@ function showErrorToUser(message) {
       throw error;
     }
   }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Check if user is logged in
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+      
+        // Get project ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        currentProjectId = urlParams.get('id');
+        
+        if (!currentProjectId) {
+            showErrorToUser('No project ID specified');
+            setTimeout(() => window.location.href = 'projects.html', 3000);
+            return;
+        }
+      
+        // Verify token is still valid
+        const tokenValid = await verifyToken(token);
+        if (!tokenValid) {
+            window.location.href = 'login.html';
+            return;
+        }
+      
+        // Load project data
+        await loadProject(currentProjectId);
+        
+        // Load images and labels in parallel
+        await Promise.all([
+            loadImages(currentProjectId),
+            loadLabels(currentProjectId)
+        ]);
+        
+        // Setup canvas events
+        setupCanvasEvents();
+        
+        console.log('Application initialized successfully');
+        
+    } catch (error) {
+        console.error('Initialization error:', error);
+        showErrorToUser(`Initialization failed: ${error.message}`);
+        
+        if (error.message.includes('401')) {
+            window.location.href = 'login.html';
+        }
+    }
+});
+
+async function verifyToken(token) {
+    try {
+        const response = await fetch(`${serverUrl}/api/verify-token`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return response.ok;
+    } catch (error) {
+        return false;
+    }
+}
   
   async function loadImages(projectId) {
     try {
@@ -87,83 +149,117 @@ function showErrorToUser(message) {
     }
   }
         
-        // Render image thumbnails
-        function renderImageList(images) {
-          imageList.innerHTML = '';
-          images.forEach(image => {
-              let imageUrl = image.file_path;
-              if (!imageUrl.startsWith('/uploads/')) {
-                  imageUrl = `/uploads/${imageUrl}`;
-              }
-              imageUrl = imageUrl.replace(/([^:]\/)+/g, '$1');
+  function renderImageList(images) {
+    imageList.innerHTML = '';
+    images.forEach(image => {
+      // Construct image URL - use file_path if available, otherwise use image_name
+      console.log("Image URL for canvas:", imageUrl);
+      let imageUrl = image.file_path || `/uploads/${image.image_name}`;
       
-              const imgElement = document.createElement('img');
-              imgElement.src = new URL(imageUrl, serverUrl).href;
-              imgElement.className = 'image-thumbnail';
-              imgElement.dataset.id = image.image_id;
-              imgElement.addEventListener('click', () => loadImage(image.image_id));
-              imgElement.onerror = () => {
-                  console.error("Thumbnail failed to load:", imgElement.src);
-                  imgElement.src = 'placeholder.jpg';
-              };
-      
-              imageList.appendChild(imgElement);
-          });
+      // Ensure URL is properly formatted
+      if (!imageUrl.startsWith('/')) {
+        imageUrl = `/${imageUrl}`;
       }
-          
-        // Load specific image
-        async function loadImage(imageId) {
-          try {
-              currentImageId = imageId;
-              const fetchResponse = await fetch(`${serverUrl}/api/images/${imageId}`, {
-                  headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-              });
-              const imageData = await fetchResponse.json();
-              const data = Array.isArray(imageData) ? imageData[0] : imageData;
       
-              if (!data.file_path && data.image_name) {
-                  data.file_path = `/uploads/${data.image_name}`;
-              }
+      // Remove duplicate slashes
+      imageUrl = imageUrl.replace(/([^:]\/)\/+/g, '$1');
       
-              let imageUrl = data.file_path.startsWith('/uploads/') ? data.file_path : `/uploads/${data.file_path}`;
-              imageUrl = imageUrl.replace(/([^:]\/)+/g, '$1');
-              const fullImageUrl = new URL(imageUrl, serverUrl).href;
-              currentImageUrl = fullImageUrl;
-      
-              const img = new Image();
-              img.crossOrigin = 'Anonymous';
-              img.onload = () => {
-                  canvas.width = img.width;
-                  canvas.height = img.height;
-                  currentImage = img;
-                  redrawCanvas();
-                  loadAnnotations(imageId);
-              };
-              img.onerror = () => {
-                  console.error("❌ Image failed to load:", fullImageUrl);
-                  showErrorToUser("Failed to load image. Please try again.");
-              };
-              img.src = fullImageUrl;
-          } catch (error) {
-              console.error('🚨 Error loading image:', error);
-              showErrorToUser(`Error loading image: ${error.message}`);
-          }
-      }
-
-        // Load labels for project
-        async function loadLabels(projectId) {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      window.location.href = 'login.html';
-      return;
-    }
-
-    const response = await fetch(`${serverUrl}/api/projects/${projectId}/labels`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      const fullImageUrl = new URL(imageUrl, serverUrl).href;
+  
+      const imgElement = document.createElement('img');
+      imgElement.src = fullImageUrl;
+      imgElement.className = 'image-thumbnail';
+      imgElement.dataset.id = image.image_id;
+      imgElement.addEventListener('click', () => loadImage(image.image_id));
+      imgElement.onerror = () => {
+        console.error("Thumbnail failed to load:", imgElement.src);
+        imgElement.src = 'placeholder.jpg';
+      };
+  
+      imageList.appendChild(imgElement);
     });
+  }
+          
+  async function loadImage(imageId) {
+    try {
+      // Clear previous state
+      currentImage = null;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Fetch image data from API
+      const response = await fetch(`${serverUrl}/api/images/${imageId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        cache: 'no-store' // Prevent cache issues
+      });
+  
+      const data = await response.json();
+      console.log('Image data:', data);
+  
+      if (!response.ok || !data?.file_path) {
+        throw new Error(data?.message || 'Invalid image data');
+      }
+  
+      // Create unique URL to prevent caching issues
+      const imageUrl = `${serverUrl}${data.file_path}?t=${Date.now()}`;
+      console.log('Loading image from:', imageUrl);
+  
+      // Load image with timeout
+      await loadImageToCanvas(imageUrl);
+      await loadAnnotations(imageId);
+      
+    } catch (error) {
+      console.error('Image load error:', error);
+      showErrorToUser(error.message);
+    }
+  }
+  
+  function loadImageToCanvas(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      
+      // Set timeout for image loading (5 seconds)
+      const timeout = setTimeout(() => {
+        reject(new Error('Image loading timed out'));
+      }, 5000);
+  
+      img.onload = () => {
+        clearTimeout(timeout);
+        console.log('Image loaded. Dimensions:', img.width, 'x', img.height);
+        
+        // Set canvas dimensions
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw image
+        ctx.drawImage(img, 0, 0);
+        currentImage = img;
+        
+        resolve();
+      };
+  
+      img.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Failed to load image'));
+      };
+  
+      img.src = url;
+    });
+  }
+        // Load labels for project
+  async function loadLabels(projectId) {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const response = await fetch(`${serverUrl}/api/projects/${projectId}/labels`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
                 if (!response.ok) throw new Error('Failed to load labels');
                 
                 labels = await response.json();
