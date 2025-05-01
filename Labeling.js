@@ -26,6 +26,15 @@ const elements = {
   optionsMenu: document.getElementById("optionsMenu"),
 };
 
+document.getElementById("menu-upload").addEventListener("click", function () {
+  const projectId = getProjectIdFromUrl();
+  if (projectId) {
+      window.location.href = `Upload.html?id=${projectId}`;
+  } else {
+      showError("Project ID is missing");
+  }
+});
+
 function getProjectIdFromUrl() {
   return new URLSearchParams(window.location.search).get("id");
 }

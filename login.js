@@ -26,7 +26,7 @@
             if (response.ok) {
                 alert("Login successful! Redirecting...");
                 localStorage.setItem("token", data.token);
-                window.location.href = "CreateProject.html";
+                window.location.href = `CreateProject.html`;
             } else {
                 alert("Login failed: " + data.message);
             }

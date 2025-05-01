@@ -8,34 +8,32 @@ let isDrawing = false;
 let startX, startY;
 let rectangles = [];
 let selectedLabelId = null;
-let currentImageUrl = null;
-let currentImage = null;
+let currentImageElement = null;
 
-// Canvas setup
+// DOM Elements
 const canvas = document.getElementById('imageCanvas');
 const ctx = canvas.getContext('2d');
 const imageList = document.getElementById('imageList');
 const labelList = document.getElementById('labelList');
 const drawnLabels = document.getElementById('drawnLabels');
+const backButton = document.getElementById('backButton');
 
-        // Back button functionality
-        document.getElementById('backButton').addEventListener('click', () => {
-            window.location.href = `Labeling.html?id=${currentProjectId}`;
-        });
-        
-        // Helper function to show errors to user
+// Back button functionality
+backButton.addEventListener('click', () => {
+    window.location.href = `Labeling.html?id=${currentProjectId}`;
+});
+
+// Helper to show error messages
 function showErrorToUser(message) {
     const errorElement = document.getElementById('errorDisplay') || createErrorElement();
     errorElement.textContent = message;
     errorElement.style.display = 'block';
-    
     setTimeout(() => {
-      errorElement.style.display = 'none';
+        errorElement.style.display = 'none';
     }, 5000);
-  }
+}
 
-  
-  function createErrorElement() {
+function createErrorElement() {
     const errorElement = document.createElement('div');
     errorElement.id = 'errorDisplay';
     errorElement.style = `
@@ -51,215 +49,93 @@ function showErrorToUser(message) {
     `;
     document.body.appendChild(errorElement);
     return errorElement;
-  }
-  
-  async function loadProject(projectId) {
-    try {
-      const response = await fetch(`${serverUrl}/api/projects/${projectId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!response.ok) throw new Error('Failed to load project');
-  
-      const project = await response.json();
-      document.title = `Labeling - ${project.project_name}`;
-    } catch (error) {
-      console.error('Error loading project:', error);
-      throw error;
-    }
-  }
+}
 
-  document.addEventListener('DOMContentLoaded', async () => {
+// Load project info
+async function loadProject(projectId) {
     try {
-        // Check if user is logged in
-        const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = 'login.html';
-            return;
-        }
-      
-        // Get project ID from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        currentProjectId = urlParams.get('id');
-        
-        if (!currentProjectId) {
-            showErrorToUser('No project ID specified');
-            setTimeout(() => window.location.href = 'projects.html', 3000);
-            return;
-        }
-      
-        // Verify token is still valid
-        const tokenValid = await verifyToken(token);
-        if (!tokenValid) {
-            window.location.href = 'login.html';
-            return;
-        }
-      
-        // Load project data
-        await loadProject(currentProjectId);
-        
-        // Load images and labels in parallel
-        await Promise.all([
-            loadImages(currentProjectId),
-            loadLabels(currentProjectId)
-        ]);
-        
-        // Setup canvas events
-        setupCanvasEvents();
-        
-        console.log('Application initialized successfully');
-        
-    } catch (error) {
-        console.error('Initialization error:', error);
-        showErrorToUser(`Initialization failed: ${error.message}`);
-        
-        if (error.message.includes('401')) {
-            window.location.href = 'login.html';
-        }
-    }
-});
-
-async function verifyToken(token) {
-    try {
-        const response = await fetch(`${serverUrl}/api/verify-token`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const response = await fetch(`${serverUrl}/api/projects/${projectId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        return response.ok;
+        if (!response.ok) throw new Error('Failed to load project');
+        const project = await response.json();
+        document.title = `Labeling - ${project.project_name}`;
     } catch (error) {
-        return false;
+        console.error('Error loading project:', error);
+        throw error;
     }
 }
-  
-  async function loadImages(projectId) {
+
+// Fetch and render images
+async function loadImages(projectId) {
     try {
-      const response = await fetch(`${serverUrl}/api/images/${projectId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-  
-      if (!response.ok) throw new Error('Failed to load images');
-  
-      const images = await response.json();
-      renderImageList(images);
-  
-      if (images.length > 0) {
-        await loadImage(images[0].image_id);
-      }
+        const response = await fetch(`${serverUrl}/api/images/${projectId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (!response.ok) throw new Error('Failed to load images');
+        const images = await response.json();
+        renderImageList(images);
     } catch (error) {
-      console.error('Error loading images:', error);
-      throw error;
+        console.error('Error loading images:', error);
+        throw error;
     }
-  }
-        
-  function renderImageList(images) {
+}
+
+// Render image thumbnails
+function renderImageList(images) {
     imageList.innerHTML = '';
     images.forEach(image => {
-      // Construct image URL - use file_path if available, otherwise use image_name
-      console.log("Image URL for canvas:", imageUrl);
-      let imageUrl = image.file_path || `/uploads/${image.image_name}`;
-      
-      // Ensure URL is properly formatted
-      if (!imageUrl.startsWith('/')) {
-        imageUrl = `/${imageUrl}`;
-      }
-      
-      // Remove duplicate slashes
-      imageUrl = imageUrl.replace(/([^:]\/)\/+/g, '$1');
-      
-      const fullImageUrl = new URL(imageUrl, serverUrl).href;
-  
-      const imgElement = document.createElement('img');
-      imgElement.src = fullImageUrl;
-      imgElement.className = 'image-thumbnail';
-      imgElement.dataset.id = image.image_id;
-      imgElement.addEventListener('click', () => loadImage(image.image_id));
-      imgElement.onerror = () => {
-        console.error("Thumbnail failed to load:", imgElement.src);
-        imgElement.src = 'placeholder.jpg';
-      };
-  
-      imageList.appendChild(imgElement);
+        const imgElement = document.createElement('img');
+        let imageUrl = image.file_path.startsWith('/uploads/') ? image.file_path : `/uploads/${image.file_path}`;
+        const fullUrl = serverUrl + imageUrl;
+        imgElement.src = fullUrl;
+        imgElement.className = 'image-thumbnail';
+        imgElement.dataset.id = image.image_id;
+        imgElement.addEventListener('click', () => {
+            currentImageId = image.image_id;
+            loadImageToCanvas(fullUrl);
+            loadAnnotations(image.image_id);
+        });
+        imageList.appendChild(imgElement);
     });
-  }
-          
-  async function loadImage(imageId) {
-    try {
-      // Clear previous state
-      currentImage = null;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Fetch image data from API
-      const response = await fetch(`${serverUrl}/api/images/${imageId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        cache: 'no-store' // Prevent cache issues
-      });
-  
-      const data = await response.json();
-      console.log('Image data:', data);
-  
-      if (!response.ok || !data?.file_path) {
-        throw new Error(data?.message || 'Invalid image data');
-      }
-  
-      // Create unique URL to prevent caching issues
-      const imageUrl = `${serverUrl}${data.file_path}?t=${Date.now()}`;
-      console.log('Loading image from:', imageUrl);
-  
-      // Load image with timeout
-      await loadImageToCanvas(imageUrl);
-      await loadAnnotations(imageId);
-      
-    } catch (error) {
-      console.error('Image load error:', error);
-      showErrorToUser(error.message);
-    }
-  }
-  
-  function loadImageToCanvas(url) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'Anonymous';
-      
-      // Set timeout for image loading (5 seconds)
-      const timeout = setTimeout(() => {
-        reject(new Error('Image loading timed out'));
-      }, 5000);
-  
-      img.onload = () => {
-        clearTimeout(timeout);
-        console.log('Image loaded. Dimensions:', img.width, 'x', img.height);
-        
-        // Set canvas dimensions
+}
+
+// Load image onto canvas
+function loadImageToCanvas(fullImageUrl) {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
         canvas.width = img.width;
         canvas.height = img.height;
-        
-        // Draw image
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
-        currentImage = img;
-        
-        resolve();
-      };
-  
-      img.onerror = () => {
-        clearTimeout(timeout);
-        reject(new Error('Failed to load image'));
-      };
-  
-      img.src = url;
-    });
-  }
-        // Load labels for project
-  async function loadLabels(projectId) {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        window.location.href = 'login.html';
-        return;
-      }
+        currentImageElement = img; // 💾 Save loaded image
 
-      const response = await fetch(`${serverUrl}/api/projects/${projectId}/labels`, {
-        headers: {
+        redrawCanvas(); // Always use redrawCanvas now
+        drawRectangles();
+        setupCanvasEvents();
+    };
+    img.onerror = (e) => {
+        console.error('Failed to load image:', e);
+        showErrorToUser('Failed to load image.');
+    };
+    img.src = fullImageUrl;
+}
+
+// Load labels for project
+async function loadLabels(projectId) {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const response = await fetch(`${serverUrl}/api/projects/${projectId}/labels`, {
+      headers: {
           'Authorization': `Bearer ${token}`
-        }
-      });
+      }
+  });
                 if (!response.ok) throw new Error('Failed to load labels');
                 
                 labels = await response.json();
@@ -269,41 +145,6 @@ async function verifyToken(token) {
                 throw error;
             }
         }
-
-        async function loadAnnotations(imageId) {
-          try {
-              rectangles = []; // Clear previous rectangles
-              
-              const response = await fetch(`${serverUrl}/api/images/${imageId}/annotations`, {
-                  headers: {
-                      'Authorization': `Bearer ${localStorage.getItem('token')}`
-                  }
-              });
-              
-              if (!response.ok) {
-                  throw new Error(`Failed to fetch annotations for image ${imageId}`);
-              }
-              
-              const annotations = await response.json();
-              
-              // Map normalized coordinates to canvas size
-              rectangles = annotations.map(a => ({
-                  x: a.x_min * canvas.width,
-                  y: a.y_min * canvas.height,
-                  width: (a.x_max - a.x_min) * canvas.width,
-                  height: (a.y_max - a.y_min) * canvas.height,
-                  labelId: a.label_id
-              }));
-              
-              console.log("📦 Loaded annotations:", rectangles);
-              redrawCanvas();
-              
-          } catch (error) {
-              console.error("⚠️ Error loading annotations:", error);
-              showErrorToUser(`Failed to load annotations: ${error.message}`);
-          }
-      }
-        
 
                 // Initialize when page loads
                 document.addEventListener('DOMContentLoaded', async () => {
@@ -375,13 +216,23 @@ async function verifyToken(token) {
         
         // Canvas event handlers
         function setupCanvasEvents() {
+            canvas.removeEventListener('mousedown', startDrawing);
+            canvas.removeEventListener('mousemove', draw);
+            canvas.removeEventListener('mouseup', stopDrawing);
+            canvas.removeEventListener('mouseout', stopDrawing);
+        
             canvas.addEventListener('mousedown', startDrawing);
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseout', stopDrawing);
         }
         
+        
         function startDrawing(e) {
+            if (!selectedLabelId) {
+                alert('Please select a label first');
+                return;
+            }            
             if (!selectedLabelId) {
                 alert('Please select a label first');
                 return;
@@ -394,69 +245,66 @@ async function verifyToken(token) {
         }
         
         function draw(e) {
-          if (!isDrawing) return;
-          
-          const rect = canvas.getBoundingClientRect();
-          const currentX = e.clientX - rect.left;
-          const currentY = e.clientY - rect.top;
-          
-          // Redraw everything
-          redrawCanvas();
-          
-          // Draw the current temporary rectangle
-          ctx.beginPath();
-          ctx.rect(startX, startY, currentX - startX, currentY - startY);
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = '#00ff00';
-          ctx.stroke();
-      }
+            if (!isDrawing || !currentImageElement) return;
         
-        function stopDrawing(e) {
+            const rect = canvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+        
+            redrawCanvas();
+        
+            const width = currentX - startX;
+            const height = currentY - startY;
+        
+            ctx.beginPath();
+            ctx.rect(startX, startY, width, height);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#00ff00';
+            ctx.stroke();
+        
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+            ctx.fillRect(startX, startY, width, height);
+        }
+        
+        async function stopDrawing(e) {
             if (!isDrawing) return;
-            
+        
             isDrawing = false;
             const rect = canvas.getBoundingClientRect();
             const endX = e.clientX - rect.left;
             const endY = e.clientY - rect.top;
-            
-            // Normalize coordinates (startX/Y might be greater than endX/Y)
+        
             const x = Math.min(startX, endX);
             const y = Math.min(startY, endY);
             const width = Math.abs(endX - startX);
             const height = Math.abs(endY - startY);
-            
-            // Only save if significant size
+        
             if (width > 10 && height > 10) {
                 const newRect = {
                     x, y, width, height,
                     labelId: selectedLabelId
                 };
-                rectangles.push(newRect);
-                
-                // Save to database
-                saveAnnotation(newRect);
+        
+                try {
+                    await saveAnnotation(newRect); // 💾 First try saving
+        
+                    await loadAnnotations(currentImageId); // 🔄 Then reload fresh from server
+                } catch (error) {
+                    console.error('Failed to save annotation:', error);
+                    showErrorToUser('Failed to save annotation. Please try again.');
+                }
             }
-            
+        
             redrawCanvas();
         }
         
         function redrawCanvas() {
-          // Clear canvas
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          
-          // Redraw the base image if it exists
-          if (currentImage) {
-              ctx.drawImage(currentImage, 0, 0);
-          }
-          
-          // Redraw all rectangles/annotations
-          drawRectangles();
-          
-          // If currently drawing, draw the temporary rectangle
-          if (isDrawing) {
-              // This will be handled by the draw() function
-          }
-      }
+            if (!currentImageElement) return;
+        
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(currentImageElement, 0, 0);
+            drawRectangles();
+        }
         
         
         function drawRectangles() {
@@ -476,57 +324,82 @@ async function verifyToken(token) {
                 ctx.fillText(label.label_name, rect.x + 5, rect.y + 15);
             });
         }
+
+        async function saveAnnotation(rect) {
+            if (!currentImageId || !rect) return;
+        
+            try {
+                const x_min = rect.x / canvas.width;
+                const y_min = rect.y / canvas.height;
+                const x_max = (rect.x + rect.width) / canvas.width;
+                const y_max = (rect.y + rect.height) / canvas.height;
+        
+                const annotationData = {
+                    image_id: currentImageId,
+                    label_id: rect.labelId,
+                    x_min,
+                    y_min,
+                    x_max,
+                    y_max
+                };
+        
+                console.log('📦 Sending annotation:', annotationData); // <--- Add this!
+        
+                const response = await fetch(`${serverUrl}/api/annotations`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(annotationData)
+                });
+        
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to save annotation');
+                }
+        
+                console.log("✅ Annotation saved");
+            } catch (error) {
+                console.error('Error saving annotation:', error);
+                showErrorToUser('Failed to save annotation.');
+            }
+        }        
+        
         
         // Save annotation to database
-        async function saveAnnotation(rect) {
-            try {
-              // Validate required fields
-              if (!currentImageId || !rect.labelId) {
-                throw new Error("Missing image ID or label ID");
-              }
-          
-              // Calculate normalized coordinates
-              const annotation = {
-                image_id: currentImageId,
-                label_id: rect.labelId,
-                x_min: rect.x / canvas.width,
-                x_max: (rect.x + rect.width) / canvas.width,
-                y_min: rect.y / canvas.height,
-                y_max: (rect.y + rect.height) / canvas.height
-              };
-          
-              console.log("Saving annotation:", annotation); // Debug log
-          
-              const response = await fetch(`${serverUrl}/api/annotations`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify(annotation)
+        async function loadAnnotations(imageId) {
+          try {
+              const response = await fetch(`${serverUrl}/api/images/${imageId}/annotations`, {
+                  headers: { 
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`
+                  }
               });
-          
+              
               if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error("Annotation save failed:", errorData);
-                throw new Error(errorData.message || `Server error: ${response.status}`);
+                  throw new Error(`Failed to load annotations: ${response.status}`);
               }
-          
-              const result = await response.json();
-              console.log('Annotation saved successfully:', result);
-              return result;
-          
-            } catch (error) {
-              console.error('Error saving annotation:', error);
-              showErrorToUser(`Failed to save annotation: ${error.message}`);
+      
+              const annotations = await response.json();
+              console.log('📦 Loaded annotations:', annotations);
               
-              // Remove the rectangle if save failed
-              rectangles = rectangles.filter(r => r !== rect);
+              // Convert normalized coordinates to canvas coordinates
+              rectangles = annotations.map(ann => ({
+                x: ann.x_min * canvas.width,
+                y: ann.y_min * canvas.height,
+                width: (ann.x_max - ann.x_min) * canvas.width,
+                height: (ann.y_max - ann.y_min) * canvas.height,
+                labelId: ann.label_id
+              }));              
+              
               redrawCanvas();
+              renderDrawnLabels();
               
-              throw error; // Re-throw for further handling if needed
-            }
+          } catch (error) {
+              console.error('Error loading annotations:', error);
+              showErrorToUser('Failed to load annotations. Please try again.');
           }
+      }
         
         // Label creation popup
         function showPopup() {
@@ -540,42 +413,42 @@ async function verifyToken(token) {
         }
         
         async function createLabel() {
-  const name = document.getElementById('labelName').value.trim();
-  const color = document.getElementById('labelColor').value;
-  
-  if (!name) {
-    alert('Please enter a label name');
-    return;
-  }
-
-  try {
-    const response = await fetch(`${serverUrl}/api/labels`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({
-        project_id: currentProjectId,
-        label_name: name,
-        label_color: color,
-        label_category: 'object' // or your default category
-      })
-    });
-
-    const data = await response.json();
-    
-    if (!response.ok) throw new Error(data.error || 'Failed to create label');
-    
-    await loadLabels(currentProjectId);
-    renderLabelList();
-    closePopup();
-    
-  } catch (error) {
-    console.error('Error:', error);
-    alert(`Error creating label: ${error.message}`);
-  }
-}
+          const name = document.getElementById('labelName').value.trim();
+          const color = document.getElementById('labelColor').value;
+          
+          if (!name) {
+            alert('Please enter a label name');
+            return;
+          }
+        
+          try {
+            const response = await fetch(`${serverUrl}/api/labels`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify({
+                project_id: currentProjectId,
+                label_name: name,
+                label_color: color,
+                label_category: 'object' // or your default category
+              })
+            });
+        
+            const data = await response.json();
+            
+            if (!response.ok) throw new Error(data.error || 'Failed to create label');
+            
+            await loadLabels(currentProjectId);
+            renderLabelList();
+            closePopup();
+            
+          } catch (error) {
+            console.error('Error:', error);
+            alert(`Error creating label: ${error.message}`);
+          }
+        }
 
         // Edit label popup
         function showEditPopup(labelId) {
@@ -638,3 +511,127 @@ async function verifyToken(token) {
                 alert(error.message || 'Failed to update label');
             }
         }
+
+        // Edit label popup
+        function showEditPopup(labelId) {
+          const label = labels.find(l => l.label_id === labelId);
+          if (!label) return;
+          
+          document.getElementById('editLabelName').value = label.label_name;
+          document.getElementById('editLabelColor').value = label.label_color || '#00ff00';
+          currentLabelId = labelId;
+          document.getElementById('editLabelPopup').style.display = 'block';
+      }
+      
+      function closeEditPopup() {
+          document.getElementById('editLabelPopup').style.display = 'none';
+      }
+      
+      async function updateLabel() {
+          const name = document.getElementById('editLabelName').value.trim();
+          const color = document.getElementById('editLabelColor').value;
+          
+          if (!name) {
+              alert('Please enter a label name');
+              return;
+          }
+          
+          try {
+              const token = localStorage.getItem('token');
+              if (!token) {
+                  alert('Please login first');
+                  window.location.href = 'login.html';
+                  return;
+              }
+              
+              const response = await fetch(`${serverUrl}/api/labels/${currentLabelId}`, {
+                  method: 'PUT',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({
+                      label_name: name,
+                      label_color: color
+                  })
+              });
+              
+              if (!response.ok) {
+                  const errorData = await response.json();
+                  throw new Error(errorData.message || 'Failed to update label');
+              }
+              
+              const updatedLabel = await response.json();
+              const index = labels.findIndex(l => l.label_id === currentLabelId);
+              if (index !== -1) {
+                  labels[index] = updatedLabel;
+              }
+              renderLabelList();
+              closeEditPopup();
+          } catch (error) {
+              console.error('Error updating label:', error);
+              alert(error.message || 'Failed to update label');
+          }
+      }
+
+      function renderDrawnLabels() {
+        drawnLabels.innerHTML = '';
+    
+        rectangles.forEach((rect, index) => {
+            const label = labels.find(l => l.label_id === rect.labelId);
+            if (!label) return;
+    
+            const item = document.createElement('div');
+            item.className = 'drawn-label-item';
+            item.style.background = label.label_color || '#444';
+            item.style.color = 'white';
+            item.style.padding = '5px';
+            item.style.marginBottom = '4px';
+            item.textContent = `${label.label_name} (${Math.round(rect.x)}, ${Math.round(rect.y)})`;
+    
+            // Add delete button
+            const delButton = document.createElement('button');
+            delButton.textContent = '🗑️';
+            delButton.style.marginLeft = '10px';
+            delButton.onclick = () => deleteAnnotation(index);
+    
+            item.appendChild(delButton);
+            drawnLabels.appendChild(item);
+        });
+    }
+
+    
+    async function deleteAnnotation(index) {
+        const confirmDelete = confirm('Are you sure you want to delete this annotation?');
+        if (!confirmDelete) return;
+    
+        const rect = rectangles[index];
+        if (!rect) return;
+    
+        // TODO: Send delete request to server if you want.
+    
+        rectangles.splice(index, 1);
+        redrawCanvas();
+        renderDrawnLabels();
+    }
+    
+
+// Initialize app
+document.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    currentProjectId = urlParams.get('id');
+    if (!currentProjectId) {
+        alert('No project selected.');
+        window.location.href = 'projects.html';
+        return;
+    }
+    try {
+        await loadProject(currentProjectId);
+        await loadImages(currentProjectId);
+        await loadLabels(currentProjectId);
+        setupCanvasEvents();
+    } catch (error) {
+        console.error('Initialization error:', error);
+        showErrorToUser('Failed to initialize application.');
+    }
+});

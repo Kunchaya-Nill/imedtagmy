@@ -4,6 +4,8 @@ const path = require("path");
 const fs = require("fs");
 const mysql = require('mysql2/promise'); // Using promise version
 const cors = require("cors");
+const sharp = require('sharp');
+const archiver = require('archiver');
 require("dotenv").config();
 
 const bcrypt = require('bcryptjs');
@@ -66,6 +68,7 @@ const uploadDir = "uploads";
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
+
 
 // Multer Configuration
 const storage = multer.diskStorage({
@@ -154,27 +157,28 @@ app.post("/api/login", async (req, res) => {
     }
 
     const token = jwt.sign({ userId: user.user_id, email: user.email }, JWT_SECRET, { expiresIn: "1h" });
-    res.status(200).json({ message: "Login successful", token });
+    res.status(200).json({  message: "Login successful", token, user_id: user.user_id });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-app.get('/api/verify-token', authenticateToken, (req, res) => {
-  res.json({ valid: true });
-});
-
 // Project Routes
-app.get("/api/projects", async (req, res) => {
+app.get("/api/projects", authenticateToken, async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM Project ORDER BY project_id DESC");
+    const userId = req.user.userId;
+    const [rows] = await pool.query(
+      "SELECT * FROM Project WHERE user_id = ? ORDER BY project_id DESC",
+      [userId]
+    );
     res.json(rows);
   } catch (error) {
     console.error("Error fetching projects:", error);
     res.status(500).json({ error: "Database error" });
   }
 });
+
 
 app.get("/api/projects/:id", async (req, res) => {
   try {
@@ -271,6 +275,25 @@ app.delete("/projects/:id", async (req, res) => {
   }
 });
 
+// Get all images for a specific project
+app.get("/api/projects/:id/images", authenticateToken, async (req, res) => {
+  try {
+    const [images] = await pool.query(
+        `SELECT i.image_id, i.image_name 
+         FROM Image i
+         JOIN ProjectImage pi ON i.image_id = pi.image_id
+         WHERE pi.project_id = ?`,
+        [req.params.id]
+    );
+    res.json(images.map(img => ({
+        ...img,
+        file_path: `/uploads/${img.image_name}`
+    })));
+} catch (error) {
+    res.status(500).json({ error: "Database error" });
+}
+});
+
 // Image Routes
 app.get("/api/images/:projectId", async (req, res) => {
   try {
@@ -293,16 +316,13 @@ app.post('/api/images/upload/:projectId', authenticateToken, upload.array('image
   const userId = req.user?.userId;
 
   console.log("=== UPLOAD REQUEST STARTED ===");
-  console.log("Project ID:", req.params.projectId);
-  console.log("User ID:", req.user.userId);
+  console.log("Project ID:", projectId);
+  console.log("User ID:", userId);
   console.log("Files received:", req.files ? req.files.map(f => f.originalname) : 'No files');
 
   if (!userId) {
     return res.status(401).json({ success: false, message: "User not authenticated" });
   }
-
-  console.log(`User ${userId} is uploading to project ${projectId}`);
-  console.log("Files received:", req.files);
 
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ success: false, message: "No files uploaded" });
@@ -316,21 +336,32 @@ app.post('/api/images/upload/:projectId', authenticateToken, upload.array('image
     const uploaded = [];
 
     for (const file of req.files) {
+      const filePath = path.join(__dirname, 'uploads', file.filename);
+
+      // Use sharp to get dimensions
+      const metadata = await sharp(filePath).metadata();
+      const width = metadata.width || 0;
+      const height = metadata.height || 0;
+
+      // Save image
       const [imageResult] = await connection.query(
-        `INSERT INTO Image (user_id, image_name, file_path, labeled_status)
-         VALUES (?, ?, ?, 0)`,
-        [userId, file.filename, `/uploads/${file.filename}`]
+        `INSERT INTO Image (user_id, image_name, file_path, labeled_status, width, height)
+         VALUES (?, ?, ?, 0, ?, ?)`,
+        [userId, file.filename, `/uploads/${file.filename}`, width, height]
       );
-  
+
+      // Link to project
       await connection.query(
         `INSERT INTO ProjectImage (project_id, image_id)
          VALUES (?, ?)`,
         [projectId, imageResult.insertId]
       );
-  
+
       uploaded.push({
         image_id: imageResult.insertId,
-        file: file.filename,  // Changed to file.filename
+        file: file.filename,
+        width,
+        height
       });
     }
 
@@ -345,7 +376,6 @@ app.post('/api/images/upload/:projectId', authenticateToken, upload.array('image
     if (connection) connection.release();
   }
 });
-
 
 app.delete("/images/:imageId", authenticateToken, async (req, res) => {
   const imageId = req.params.imageId;
@@ -406,150 +436,105 @@ function handleDbError(res, error, action) {
   });
 }
 
-// Get all images for a specific project
+// Get project images
 app.get("/api/projects/:id/images", authenticateToken, async (req, res) => {
   try {
-    const [images] = await pool.query(
-        `SELECT i.image_id, i.image_name 
-         FROM Image i
-         JOIN ProjectImage pi ON i.image_id = pi.image_id
-         WHERE pi.project_id = ?`,
-        [req.params.id]
-    );
-    res.json(images.map(img => ({
-        ...img,
-        file_path: `/uploads/${img.image_name}`
-    })));
-} catch (error) {
-    res.status(500).json({ error: "Database error" });
-}
+      const [images] = await pool.query(
+          `SELECT i.image_id, i.image_name 
+           FROM Image i
+           JOIN ProjectImage pi ON i.image_id = pi.image_id
+           WHERE pi.project_id = ?`,
+          [req.params.id]
+      );
+      res.json(images.map(img => ({
+          ...img,
+          file_path: `/uploads/${img.image_name}`
+      })));
+  } catch (error) {
+      res.status(500).json({ error: "Database error" });
+  }
 });
 
 // Get single image
 app.get('/api/images/:id', authenticateToken, async (req, res) => {
   try {
-    // Simple, direct query without joins
-    const [rows] = await pool.query(`
-      SELECT 
-        image_id,
-        image_name,
-        file_path,
-        labeled_status
-      FROM Image 
-      WHERE image_id = ?`, 
+    const [rows] = await pool.query(
+      `SELECT 
+        image_id, 
+        image_name, 
+        COALESCE(file_path, CONCAT('/uploads/', image_name)) AS file_path 
+       FROM Image 
+       WHERE image_id = ?`,
       [req.params.id]
     );
 
     if (rows.length === 0) {
-      return res.status(404).json({ 
-        error: 'IMAGE_NOT_FOUND',
-        message: 'Image record not found in database'
-      });
+      return res.status(404).json({ error: 'Image not found' });
     }
-
-    const imageData = rows[0];
-    
-    // Verify the physical file exists
-    const filePath = path.join(__dirname, imageData.file_path);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        error: 'FILE_NOT_FOUND',
-        message: 'Image file missing from server',
-        dbRecord: imageData
-      });
-    }
-
-    // Return standardized response
-    res.json({
-      success: true,
-      data: {
-        id: imageData.image_id,
-        name: imageData.image_name,
-        url: imageData.file_path, // Already includes /uploads/
-        status: imageData.labeled_status
-      }
-    });
-
+    res.json(rows[0]);
   } catch (err) {
-    console.error("Database error:", err);
-    res.status(500).json({ 
-      error: 'DATABASE_ERROR',
-      message: 'Failed to query image data'
-    });
+    console.error("Error fetching image:", err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Get image annotations
-app.get("/api/images/:imageId/annotations", authenticateToken, async (req, res) => {
+app.get('/api/images/:imageId/annotations', authenticateToken, async (req, res) => {
+  const imageId = req.params.imageId;
+
   try {
-    const [annotations] = await pool.query(
-      `SELECT a.*, l.label_name, l.label_color 
-       FROM Annotation a
-       JOIN ImageLabel il ON a.imagelabel_id = il.imagelabel_id
-       JOIN Label l ON il.label_id = l.label_id
-       WHERE il.image_id = ?`,
-      [req.params.imageId]
-    );
+    const [annotations] = await pool.query(`
+      SELECT 
+        a.x_min, a.y_min, a.x_max, a.y_max,
+        il.label_id
+      FROM Annotation a
+      JOIN ImageLabel il ON a.imagelabel_id = il.imagelabel_id
+      WHERE il.image_id = ?
+    `, [imageId]);
 
     res.json(annotations);
   } catch (error) {
-    console.error("❌ Error fetching annotations for image", req.params.imageId, ":", error.message);
-    res.status(500).json({ error: "Failed to fetch annotations", details: error.message });
+    console.error('Error loading annotations:', error);
+    res.status(500).json({ error: 'Failed to load annotations' });
   }
 });
 
-
 // Save annotation
-app.post("/api/annotations", authenticateToken, async (req, res) => {
+// POST /api/annotations
+app.post('/api/annotations', authenticateToken, async (req, res) => {
+  const { image_id, label_id, x_min, y_min, x_max, y_max } = req.body;
+
   try {
-    const { image_id, label_id, x_min, x_max, y_min, y_max } = req.body;
-
-    // Validation
-    if (!image_id || !label_id || 
-        x_min === undefined || x_max === undefined ||
-        y_min === undefined || y_max === undefined) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    // 1. Find or create ImageLabel relationship
-    const [rows] = await pool.query(
-      `SELECT imagelabel_id FROM ImageLabel 
-       WHERE image_id = ? AND label_id = ?`,
+    // 1. Find or create ImageLabel
+    const [imageLabelRows] = await pool.query(
+      `SELECT imagelabel_id FROM ImageLabel WHERE image_id = ? AND label_id = ?`,
       [image_id, label_id]
     );
 
     let imagelabel_id;
-    if (rows.length === 0) {
-      const [result] = await pool.query(
+    if (imageLabelRows.length > 0) {
+      imagelabel_id = imageLabelRows[0].imagelabel_id;
+    } else {
+      const [insertImageLabel] = await pool.query(
         `INSERT INTO ImageLabel (image_id, label_id) VALUES (?, ?)`,
         [image_id, label_id]
       );
-      imagelabel_id = result.insertId;
-    } else {
-      imagelabel_id = rows[0].imagelabel_id;
+      imagelabel_id = insertImageLabel.insertId;
     }
 
-    // 2. Save the annotation
-    const [result] = await pool.query(
-      `INSERT INTO Annotation 
-       (imagelabel_id, x_min, x_max, y_min, y_max)
-       VALUES (?, ?, ?, ?, ?)`,
-      [imagelabel_id, x_min, x_max, y_min, y_max]
+    // 2. Insert into Annotation
+    await pool.query(
+      `INSERT INTO Annotation (imagelabel_id, x_min, y_min, x_max, y_max) VALUES (?, ?, ?, ?, ?)`,
+      [imagelabel_id, x_min, y_min, x_max, y_max]
     );
 
-    res.json({ 
-      success: true,
-      annotation_id: result.insertId
-    });
-
+    res.status(201).json({ message: 'Annotation saved' });
   } catch (error) {
-    console.error("Error saving annotation:", error);
-    res.status(500).json({ 
-      error: "Failed to save annotation",
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    console.error('Error saving annotation:', error);
+    res.status(500).json({ error: 'Failed to save annotation' });
   }
 });
+
 
 
 // Label CRUD endpoints
@@ -605,6 +590,127 @@ app.get("/api/projects/:projectId/labels", authenticateToken, async (req, res) =
   } catch (error) {
     console.error("Error fetching labels:", error);
     res.status(500).json({ error: "Failed to fetch labels" });
+  }
+});
+
+app.get('/api/projects/:projectId/export/raw', authenticateToken, async (req, res) => {
+  const projectId = req.params.projectId;
+
+  try {
+    // Get all images for this project
+    const [images] = await pool.query(`
+      SELECT i.image_name FROM Image i
+      JOIN ProjectImage pi ON i.image_id = pi.image_id
+      WHERE pi.project_id = ?`, [projectId]);
+
+    if (images.length === 0) {
+      return res.status(404).json({ error: 'No images found for this project.' });
+    }
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    res.attachment(`project_${projectId}_images.zip`);
+    archive.pipe(res);
+
+    for (const img of images) {
+      const filePath = path.join(__dirname, 'uploads', img.image_name);
+      if (fs.existsSync(filePath)) {
+        archive.file(filePath, { name: img.image_name });
+      }
+    }
+
+    await archive.finalize();
+  } catch (err) {
+    console.error('Export raw failed:', err);
+    res.status(500).json({ error: 'Failed to export raw images.' });
+  }
+});
+
+app.get('/api/projects/:projectId/export/coco', authenticateToken, async (req, res) => {
+  const projectId = req.params.projectId;
+
+  try {
+    // Load images with size
+    const [images] = await pool.query(`
+      SELECT i.image_id, i.image_name, i.file_path, i.width, i.height
+      FROM Image i
+      JOIN ProjectImage pi ON i.image_id = pi.image_id
+      WHERE pi.project_id = ?`, [projectId]);
+
+    if (images.length === 0) {
+      return res.status(404).json({ error: 'No images for COCO export.' });
+    }
+
+    // Load annotations
+    const [annotations] = await pool.query(`
+      SELECT 
+        a.annotation_id, a.x_min, a.y_min, a.x_max, a.y_max,
+        i.image_id, i.image_name,
+        l.label_id, l.label_name
+      FROM Annotation a
+      JOIN ImageLabel il ON a.imagelabel_id = il.imagelabel_id
+      JOIN Image i ON il.image_id = i.image_id
+      JOIN Label l ON il.label_id = l.label_id
+      JOIN ProjectImage pi ON i.image_id = pi.image_id
+      WHERE pi.project_id = ?`, [projectId]);
+
+    const imageMap = new Map();
+    images.forEach(img => {
+      imageMap.set(img.image_id, {
+        width: img.width || 1,
+        height: img.height || 1
+      });
+    });
+
+    // Build categories
+    const categoriesMap = new Map();
+    let categoryId = 1;
+    const categories = [];
+    const categoryIndex = {};
+
+    for (const ann of annotations) {
+      if (!categoriesMap.has(ann.label_name)) {
+        categoriesMap.set(ann.label_name, categoryId);
+        categories.push({ id: categoryId, name: ann.label_name });
+        categoryIndex[ann.label_name] = categoryId;
+        categoryId++;
+      }
+    }
+
+    const coco = {
+      images: images.map(img => ({
+        id: img.image_id,
+        file_name: img.image_name,
+        width: img.width || 0,
+        height: img.height || 0
+      })),
+      annotations: annotations.map(ann => {
+        const imageEntry = imageMap.get(ann.image_id);
+        const imgW = imageEntry?.width || 1;
+        const imgH = imageEntry?.height || 1;
+
+        const x_abs = Math.round(ann.x_min * imgW);
+        const y_abs = Math.round(ann.y_min * imgH);
+        const width_abs = Math.round((ann.x_max - ann.x_min) * imgW);
+        const height_abs = Math.round((ann.y_max - ann.y_min) * imgH);
+
+        return {
+          id: ann.annotation_id,
+          image_id: ann.image_id,
+          category_id: categoryIndex[ann.label_name],
+          bbox: [x_abs, y_abs, width_abs, height_abs],
+          area: width_abs * height_abs,
+          iscrowd: 0
+        };
+      }),
+      categories: categories
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename=project_${projectId}_coco.json`);
+    res.send(JSON.stringify(coco, null, 2));
+  } catch (err) {
+    console.error('Export COCO failed:', err);
+    res.status(500).json({ error: 'Failed to export COCO file.' });
   }
 });
 

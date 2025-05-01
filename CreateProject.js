@@ -1,4 +1,64 @@
+const serverUrl = "http://localhost:5000";
 let selectedType = "";
+
+document.addEventListener("DOMContentLoaded", function () {
+    const sidebarLinks = document.querySelectorAll(".sidebar-link");
+    const containers = document.querySelectorAll(".container");
+    const accountBtn = document.getElementById("accountBtn");
+    const accountPopup = document.getElementById("accountPopup");
+
+    // Sidebar click event to switch content
+    sidebarLinks.forEach(link => {
+        link.addEventListener("click", function (event) {
+            event.preventDefault();
+
+            // Remove active class from all sidebar links
+            sidebarLinks.forEach(item => item.classList.remove("active"));
+            this.classList.add("active");
+
+            // Hide all sections
+            containers.forEach(container => container.classList.remove("active"));
+
+            // Show the selected section
+            const targetId = this.getAttribute("data-target");
+            document.getElementById(targetId).classList.add("active");
+        });
+    });
+
+    // Toggle account popup
+    accountBtn.addEventListener("click", function (event) {
+        event.stopPropagation();
+        accountPopup.style.display = (accountPopup.style.display === "block") ? "none" : "block";
+    });
+
+    document.addEventListener("click", function (event) {
+        if (!accountPopup.contains(event.target) && event.target !== accountBtn) {
+            accountPopup.style.display = "none";
+        }
+    });
+});
+
+function getProjectIdFromUrl() {
+    return new URLSearchParams(window.location.search).get("id");
+  }
+  
+  function jwt_decode(token) {
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      );
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      localStorage.removeItem("token");
+      window.location.href = "login.html";
+      return {};
+    }
+  }
 
 document.addEventListener("DOMContentLoaded", () => {
     loadProjects();
@@ -14,16 +74,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Load projects from the server
 async function loadProjects() {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+        alert("Not logged in. Redirecting...");
+        window.location.href = "login.html";
+        return;
+    }
+
     try {
-        const response = await fetch("/api/projects");
+        const response = await fetch("http://localhost:5000/api/projects", {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        });
+
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
 
         const projects = await response.json();
         const projectContainer = document.getElementById("projectContainer");
-        
-        // Clear existing projects but keep the "Create New Project" card
+
         projectContainer.innerHTML = `
             <div class="project-card" onclick="openModal()">
                 <h3>+</h3>
@@ -31,11 +103,9 @@ async function loadProjects() {
             </div>
         `;
 
-        if (projects && projects.length > 0) {
-            projects.forEach(project => {
-                addProjectToUI(project);
-            });
-        }
+        projects.forEach(project => {
+            addProjectToUI(project);
+        });
     } catch (error) {
         console.error("Error loading projects:", error);
         alert("Failed to load projects. Please check console for details.");
@@ -75,8 +145,10 @@ async function createProject() {
         return;
     }
 
-    // Get the logged-in user ID (you'll need to implement this properly)
-    const userId = 1; // This should come from your auth system
+    const token = localStorage.getItem("token");
+    const decoded = jwt_decode(token);
+    const userId = decoded.userId;
+
 
     const newProject = {
         user_id: userId,
@@ -119,28 +191,31 @@ async function deleteProject(projectId) {
         return;
     }
 
+    const token = localStorage.getItem("token");
+
     try {
         const response = await fetch(`http://localhost:5000/projects/${projectId}`, {
             method: "DELETE",
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
             }
         });
 
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || "Failed to delete project");
         }
 
-        // Reload projects after successful deletion
-        loadProjects();
+        loadProjects(); // reload UI
         alert("Project deleted successfully!");
     } catch (error) {
         console.error("Error deleting project:", error);
         alert(`Failed to delete project: ${error.message}`);
     }
 }
+
 
 // Modal functions
 function openModal() {

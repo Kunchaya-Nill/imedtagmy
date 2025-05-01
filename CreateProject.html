@@ -8,81 +8,218 @@
     </head>
 <body>
     
-    <!-- Sidebar -->
     <div class="sidebar">
         <div class="logo">
             <h3>Dashboard</h3>
         </div>
         <div class="menu">
-            <a href="createproject.html" class="sidebar-link" data-menu="projects"><span class="icon">📊</span> Projects</a>
-            <a href="members.html" class="sidebar-link" data-menu="members"><span class="icon">👥</span> Members</a>
-            <a href="#" class="sidebar-link" data-menu="settings"><span class="icon">⚙️</span> Settings</a> 
-            <a href="#" class="sidebar-link" data-menu="help"><span class="icon">❓</span> Help</a>
+            <a href="#" class="sidebar-link active" data-target="projects"><span class="icon">📊</span> Projects</a>
+            <a href="#" class="sidebar-link" data-target="members"><span class="icon">👥</span> Members</a>
+            <a href="#" class="sidebar-link" data-target="help"><span class="icon">❓</span> Help</a>
         </div>
-    
-        <!-- Account Section -->
+
+        <!-- User Account Section  -->
         <div class="account">
-            <a href="#" class="sidebar-link account-link" id="accountBtn">
+            <a href="#" id="accountBtn" class="account-link">
                 <span class="icon">🟢</span> User001
             </a>
         </div>
     </div>
-    
+
     <!-- Account Popup -->
     <div class="account-popup" id="accountPopup">
         <div class="popup-content">
             <div class="account-info">
-                <span class="icon">G</span>
-                <div>
-                    <strong>User001</strong>
-                    <p>xxxxxx@gmail.com</p>
-                </div>
+                <strong>User001</strong>
+                <p>xxxxxx@gmail.com</p>
             </div>
             <hr>
-            <a href="accountsettings.html" class="popup-item">⚙️ Account Settings</a> <!-- Link to settings.html -->
+            <a href="#" class="popup-item sidebar-link" data-target="account">⚙️ Account Settings</a>
             <a href="#" class="popup-item logout">↩️ Sign Out</a>
         </div>
     </div>
 
-    <div class="container">
-        <div class="header">
-            <div>
-                <h2>Projects</h2>
-                <input type="text" class="search-box" id="searchBox" placeholder="Search..." oninput="filterProjects()">
-            </div>
+    <!-- Main Content -->
+    <div class="content">
+
+
+
+
+
+
+        <!-- Create Projects Section --> 
+            <div id="projects" class="container active">
+            <h2>Projects</h2>
+            
+            <!-- Search Box -->
+            <input type="text" class="search-box" id="searchBox" placeholder="Search..." oninput="filterProjects()">
+
+            <!-- Action Buttons -->
             <div class="button-container">
                 <button class="create-btn" onclick="openModal()">+ New Project</button>
                 <button class="invite-btn" onclick="openInviteModal()">Invite Members</button>
             </div>
-        </div>
-        <div class="project-container" id="projectContainer">
-            
-        </div>
-    </div>
 
-    <!-- Modal for Creating a New Project -->
-    <div class="modal" id="projectModal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal()">&times;</span>
-            <h2>Create New Project</h2>
-            <input type="text" class="input-box" id="projectName" placeholder="Project Name">
-            
-            <input type="text" class="input-box" id="searchTag" placeholder="Search Tag" onkeypress="addTag(event)">
-            <div class="tag-container" id="tagContainer"></div>
-
-            <div class="option" onclick="selectOption(this, 'Object Detection')">
-                <strong>Object Detection</strong>
-                <p>Identify objects by using bounding box</p>
-            </div>
-            <div class="option" onclick="selectOption(this, 'Instance Segmentation')">
-                <strong>Instance Segmentation</strong>
-                <p>Identify objects by using their actual shape</p>
+            <!-- Project List Container -->
+            <div class="project-container" id="projectContainer"></div>
             </div>
 
-            <img id="exampleImage" src="" alt="Example Image"
-                style="width: 100%; border-radius: 5px; margin-top: 10px; display: none;">
+        <!-- Modal for Creating a New Project -->
+            <div class="modal" id="projectModal">
+                <div class="modal-content">
+                    <span class="close-btn" onclick="closeModal()">&times;</span>
+                    <h2>Create New Project</h2>
+                    
+                    <!-- Project Name Input -->
+                    <input type="text" class="input-box" id="projectName" placeholder="Project Name">
 
-            <button class="create-btn" onclick="createProject()">Create</button>
+                    <!-- Tags Input -->
+                    <input type="text" class="input-box" id="searchTag" placeholder="Search Tag" onkeypress="addTag(event)">
+                    <div class="tag-container" id="tagContainer"></div>
+
+                    <!-- Project Type Selection -->
+                    <div class="option" onclick="selectOption(this, 'Object Detection')">
+                        <strong>Object Detection</strong>
+                        <p>Identify objects using bounding boxes.</p>
+                    </div>
+                    <div class="option" onclick="selectOption(this, 'Instance Segmentation')">
+                        <strong>Instance Segmentation</strong>
+                        <p>Identify objects using their actual shape.</p>
+                    </div>
+
+                    <!-- Example Image Preview -->
+                    <img id="exampleImage" src="" alt="Example Image"
+                        style="width: 100%; border-radius: 5px; margin-top: 10px; display: none;">
+
+                    <!-- Create Project Button -->
+                    <button class="create-btn" onclick="createProject()">Create</button>
+                </div>
+            </div>
+
+            
+            
+
+
+
+        <!-- Members Section -->
+            <div id="members" class="container">
+                <h2>Members</h2>
+                <div class="invite-section">
+                    <p>Invite members to give them access to projects in this workspace.</p>
+                    <input type="text" placeholder="Enter email(s)">
+                    <select>
+                        <option>Admin</option>
+                        <option>Labeler</option>
+                        <option>Reviewer</option>
+                    </select>
+                    <button>Copy link</button>
+                    <button>Send email</button>
+                </div>
+
+                <!-- Members List -->
+                <div class="members-list">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Members List</h3>
+                        <select class="sort-dropdown">
+                            <option>Sort by Name</option>
+                            <option>Sort by Role</option>
+                        </select>
+                    </div>
+                
+                    <div class="member-item">
+                        <span><strong>User001</strong> - xxxxxx@gmail.com</span>
+                        <span class="role-badge">Admin</span>
+                    </div>
+                    <!-- More members can be dynamically added here -->
+                </div>
+            </div>
+
+            
+
+            <div id="help" class="container">
+                <h2>Help & Guide</h2>
+                <p>Welcome! This guide will help you understand how to use the platform effectively.</p>
+
+                <h3>🏗️ Step 1: Create a New Project</h3>
+                <ul>
+                    <li>Go to the <strong>Dashboard</strong>.</li>
+                    <li>Click <strong>+ New Project</strong>.</li>
+                    <li>Enter a name and select a project type:
+                        <ul>
+                            <li><strong>Object Detection:</strong> Detect objects using bounding boxes.</li>
+                            <li><strong>Instance Segmentation:</strong> Detect objects using their shapes.</li>
+                        </ul>
+                    </li>
+                    <li>Optionally, add tags and click <strong>Create</strong>.</li>
+                </ul>
+            
+                <h3>🖼️ Step 2: Upload Images</h3>
+                <ul>
+                    <li>Open a project and go to <strong>Upload Images</strong>.</li>
+                    <li>Click <strong>Upload Images</strong> or <strong>Upload Folder</strong>.</li>
+                    <li>Once uploaded, click <strong>Save and Continue</strong> to send them to the labeling stage.</li>
+                </ul>
+            
+                <h3>🏷️ Step 3: Label Images</h3>
+                <ul>
+                    <li>Go to the <strong>Labeling</strong> tab.</li>
+                    <li>View images and track labeling progress on the right panel.</li>
+                    <li>Use the instruction box to note down labeling guidelines.</li>
+                </ul>
+            
+                <h3>🔖 Step 4: Manage Classes & Tags</h3>
+                <ul>
+                    <li>Go to <strong>Class & Tags</strong>.</li>
+                    <li>Click <strong>+ Add</strong> to create new classes or tags.</li>
+                    <li>Customize colors for classes to assist labeling.</li>
+                </ul>
+            
+                <h3>👥 Step 5: Manage Members</h3>
+                <ul>
+                    <li>Visit the <strong>Members</strong> tab.</li>
+                    <li>Invite people via email and assign roles like Admin, Labeler, or Reviewer.</li>
+                </ul>
+            
+                <h3>📦 Step 6: Export Your Dataset</h3>
+                <ul>
+                    <li>Go to the <strong>Dataset</strong> tab.</li>
+                    <li>Click <strong>Export</strong> to download your data (functionality may vary).</li>
+                </ul>
+            
+                <h3>⚙️ Pro Tips</h3>
+                <ul>
+                    <li>Click on a project name to rename it.</li>
+                    <li>Use the ⋮ menu to duplicate, rename, or delete projects.</li>
+                    <li>Data is stored locally in your browser. Avoid clearing your cache before exporting.</li>
+                </ul>
+            
+                <p>If you have any questions or run into issues, feel free to contact the support team.</p>
+            </div>
+
+       <!-- Account Setting Section --> 
+        <div id="account" class="container">
+            <h2>Your Profile</h2>
+             <p>You are signed in with your Google account.</p>
+             <div class="profile-card">
+                <div class="profile-info">
+                    <div class="profile-pic">G</div>
+                    <div>
+                        <strong>User001</strong><br>
+                        <span>xxxxxx@gmail.com</span>
+                    </div>
+                </div>
+                <button class="signout-btn">Sign Out</button>
+            </div>
+            
+            <!-- Modify Account -->
+            <div>
+                <h3>Modify Account</h3>
+                <div class="modify-buttons">
+                    <button class="change-email-btn">📧 Change Email</button>
+                    <button class="delete-account-btn">❌ Delete Account</button>
+                </div>
+            </div>
+            <div class="project-container" id="projectContainer"></div>
         </div>
     </div>
     <script src="CreateProject.js"></script>
